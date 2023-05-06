@@ -1,0 +1,535 @@
+---
+title: "Thesis2-Simulation-Generate Mt Data"
+author: "Jianing Wang"
+date: "2023-04-23"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE)
+```
+
+
+## Introduction
+
+This program is a part of the simulation studies for the Chapter 2 in Jianing Wang's Boston University Doctoral Dissertation.
+
+
+## This program
+
+This program creates the code for generating datasets from the proposed  $M_{t}$ model. The program uses a real Ohio county map to reflect the neighboring structure and downscaled Ohio population size for general population size $P$. The number of simulation is set at 100.
+
+
+```{r packages and functions, include = FALSE, result = 'hide'}
+if (!require("dplyr")) install.packages("dplyr") else (require("dplyr", quietly = TRUE)) 
+if (!require("reshape2")) install.packages("reshape2") else (require("reshape2", quietly = TRUE)) 
+if (!require("stringr")) install.packages("stringr") else (require("stringr", quietly = TRUE)) 
+if (!require("ggplot2")) install.packages("ggplot2") else (require("ggplot2", quietly = TRUE)) 
+if (!require("LaplacesDemon")) install.packages("LaplacesDemon") else (require("LaplacesDemon", quietly = TRUE)) 
+if (!require("miceadds")) install.packages("miceadds") else (require("miceadds", quietly = TRUE)) 
+if (!require("corrplot")) install.packages("corrplot") else (require("corrplot", quietly = TRUE)) 
+library(corrplot)
+
+## Path to functions
+path_to_funcs <- ".../Simulation/"
+source(paste(path_to_funcs, "data_simu_functions.r", sep = ""))
+source(paste(path_to_funcs, "postprocess_functions.r", sep = ""))
+
+## Save data
+path_to_data <- ".../Simulation/MapData/"
+
+```
+
+## Basic setup:
+
+### Number of data sources 
+
+$J = (3,5,7)$
+
+### Number of locations and neighborhood structure
+
+Locations and neighboring structure: the map of Ohio counties is taken as the structure of the areas that of interests. Therefore, $K = 88$
+
+General population size by location is set up proportional to the real residents size in Ohio counties. All sizes are proportionally scaled down to reduce the burden of computation. Such downscaling only improve the program run time but will not distort the estimates.
+
+### Detection probabilities (capturability)
+
+\textbf{Scenario 1.1 - } When all lists have similar and large capturability
+
+For J = 3/5/7, $p_{ij} = p_{j} = 0.3$ (i.e. analogous to survey data with replications)
+
+\textbf{Scenario 1.2 -} When all lists have similar and small capturability
+
+For J = 3/5/7, $p_{ij} = p_{j} = 0.03$  
+
+\textbf{Scenario 1.3 -} Lists have varying capturability without extremely low one
+
+Notice that when we want to balance the collective catchabilities when adding new lists.
+
+If J = 3, then $p_{ij} = p_{j} = (0.3,0.1,0.05)$ 
+
+If J = 5, then $p_{ij} = p_{j} = (0.3,0.2,0.1,0.05,0.03)$
+
+If J = 7, then $p_{ij} = p_{j} = (0.3,0.25,0.2,0.1,0.05,0.04,0.03)$
+
+\textbf{Scenario 1.4 -} Lists have varying capturability with extremely low one
+
+If J = 3, then $p_{ij} = p_{j} = (0.3,0.1,0.005)$ 
+
+If J = 5, then $p_{ij} = p_{j} = (0.3,0.2,0.1,0.05,0.005)$
+
+If J = 7, then $p_{ij} = p_{j} = (0.3,0.25,0.2,0.1,0.05,0.03,0.005)$ 
+
+Additionally, we will perform two extra runs for $J = 5$ and $7$ by removing the smallest lists (last lists) and see if there is substantial changes on the estimation.
+
+\textbf{Scenario 1.5 - } Overall capture 30% ~ 40% of all target people and $J = 3$, the overall capturability = sum of the $p_{j}$ given that $\mu_{j}$ is independent.
+
+$\mu_{j} = (0.15, 0.15, 0.15)$, same capturability
+
+$\mu_{j} = (0.3, 0.1, 0.05)$, incremental capturability
+
+$\mu_{j} = (0.3, 0.01, 0.005)$, incremental capturability with extreme low capturability one
+
+\textbf{Scenario 1.6 - } Overall capture 50% ~ 60% of all target people and $J = 3$, the overall capturability = sum of the $p_{j}$ given that $\mu_{j}$ is independent.
+
+$\mu_{j} = (0.25, 0.25, 0.25)$, same capturability
+
+$\mu_{j} = (0.3, 0.25, 0.1)$, incremental capturability
+
+$\mu_{j} = (0.3, 0.25, 0.005)$, incremental capturability with extreme low capturability one
+
+\textbf{Scenario 1.7 - } Overall capture 70% ~ 80% of all target people and $J = 3$, the overall capturability = sum of the $p_{j}$ given that $\mu_{j}$ is independent.
+
+$\mu_{j} = (0.4, 0.4, 0.4)$, same capturability
+
+$\mu_{j} = (0.5, 0.4, 0.1)$, incremental capturability
+
+$\mu_{j} = (0.5, 0.4, 0.005)$, incremental capturability with extreme low capturability one
+
+### Preprocess the adjacency matrix and general population size
+
+Preprocess the adjacency matrix from real Map of Ohio counties and import the general population size $P$.
+
+```{r}
+### Import the counties files ### 
+Adjmat_Ohio <- read.csv(paste0(path_to_data, "OHData/OHcounties_adjacency2010.csv", sep = ""))
+### Adjacency matrix ###
+W_val <- as.matrix(Adjmat_Ohio)
+rownames(W_val) <- colnames(Adjmat_Ohio)
+colnames(W_val) <- colnames(Adjmat_Ohio)
+### Compute the Neighbors matrix and output for model fitting use ###
+D_w_val <- read.csv(paste0(path_to_data, "OHData/nNeighbor_mat_OHcounties.csv", sep = "")) # Ajacency matrix with number of neighbors
+D_w_val <- as.matrix(D_w_val)
+rownames(D_w_val) <- colnames(D_w_val)
+names_all_areas <- colnames(W_val) # names of all counties from adjacency matrix
+
+### NUMBER OF THE REGIONS (K) ###
+K <- nrow(W_val)
+
+### GENERAL POPULATION SIZE (P) ###
+### Import real P of Ohio counties ###
+realP <- read.csv(paste(path_to_data,"OHData/OH_Cty_Pop.csv", sep = ""))
+### Match the names in population data to the names in adjacency matrix ###
+setdiff(realP$County,names_all_areas)
+realP$County<-sub(" ", ".",realP$County)
+
+### Order by the order of names_all_areas ###
+realP_order <- realP[match(names_all_areas, realP$County),]
+
+### Scale down to improve run time###
+scale <- 120
+realP_order$ScaledPopulation <- realP_order$Population/scale
+P_val <- round(realP_order$ScaledPopulation,digits = 0)
+
+```
+
+## Model
+
+1. Detection probability model:
+
+Independent lists with no heterogeneity:
+
+$$
+Y_{ijk} \sim Ber(p_{ij}) \\
+logit(p_{ij}) = \mu_{j} \\
+\text{where i = 1...I, j = 1...J, k = 1...K} 
+$$
+
+2. Prevalence model:
+
+The area-specific prevalence with spatial pattern (no covariate) are generated from the following model: 
+
+$$
+\begin{align}
+     N_{k} \sim & \text{Bin}(P_{k},\lambda_{k})\\
+     logit(\lambda_{k})= & \beta_{0} + \phi_{k}, k = 1...K
+\end{align}
+$$
+
+## Set up parameters
+
+```{r Select the scenario to run}
+### Choose the scenario number from the above list ###
+scenario <- 1.6
+
+### NUMBER OF THE LISTS (J) ###
+nDatasets_val <- 3 # 3, 5, 7
+
+### Simulation study 1 ###
+if(scenario < 1.5){ 
+  # If varying or not varying the detection probabilities
+  DetectProb_scenario <- "Vary" # "Same_large" # "Same_small" # "Vary"
+  # If including or excluding the extremely small data source
+  Vary_Extreme_scenario <- "woExtreme" # "woExtreme" # "wExtreme" 
+}
+
+### Simulation study 2 ###
+if(scenario >= 1.5){
+  DetectProb_scenario <- "Vary"  # "Same" # "Vary"
+  nDatasets_val <- 3 # fixed at 3
+  if(DetectProb_scenario == "Vary"){
+    # If including or excluding the extremely small data source
+    Vary_Extreme_scenario <- "wExtreme" # "woExtreme" # "wExtreme" 
+    }
+}
+
+```
+
+```{r}
+### Path to output the data ### 
+if(scenario < 1.5){
+if(DetectProb_scenario != "Vary"){
+  save_to_where <- paste(".../Simulation/GenDt_Mt/Simu",scenario,"_J", nDatasets_val, "_", DetectProb_scenario, "PDetect/", sep = "")
+}
+if(DetectProb_scenario == "Vary"){
+  save_to_where <- paste(".../Simulation/GenDt_Mt/Simu",scenario,"_J", nDatasets_val, "_", DetectProb_scenario, Vary_Extreme_scenario, "PDetect/", sep = "")
+  }
+} # End of simulation study 1
+
+if(scenario >= 1.5){
+  if(DetectProb_scenario == "Same"){
+  save_to_where <- paste(".../Simulation/GenDt_Mt/Simu",scenario,"_J", nDatasets_val, "_", DetectProb_scenario, "PDetect/", sep = "")
+  }
+  if(DetectProb_scenario == "Vary"){
+  save_to_where <- paste(".../Simulation/GenDt_Mt/Simu",scenario,"_J", nDatasets_val, "_", DetectProb_scenario, Vary_Extreme_scenario, "PDetect/", sep = "")
+  }
+} # End of simulation study 2
+
+```
+
+
+```{r Data Generation Parameter, echo = FALSE}
+
+### (1) SPATIAL PROCESS MODEL ###
+## Spatial RE variance
+tau2_val <- 0.2 
+## Overall Spatial correlation level
+rho_val <- 0.95
+## Overall Prevalence (beta0)
+mean_p_prev <- rep(0.05,K)
+beta0_val <- log(mean_p_prev/(1-mean_p_prev))
+  
+### (2) DETECTION PROBABILITY MODEL ###
+if(scenario < 1.5){
+if(DetectProb_scenario == "Same_large"){
+  p_j <- rep(0.3, nDatasets_val)
+}
+if(DetectProb_scenario == "Same_small"){
+  p_j <- rep(0.03, nDatasets_val)
+}
+if(DetectProb_scenario == "Vary"){
+  if(nDatasets_val == 3 & Vary_Extreme_scenario == "woExtreme"){
+    p_j <- c(0.3,0.1,0.05)
+  }
+  if(nDatasets_val == 5 & Vary_Extreme_scenario == "woExtreme"){
+    p_j <- c(0.3,0.2,0.1,0.05,0.03)
+  }
+  if(nDatasets_val == 7 & Vary_Extreme_scenario == "woExtreme"){
+     p_j <- c(0.3,0.25,0.2,0.1,0.05,0.04,0.03)
+  }
+  if(nDatasets_val == 3 & Vary_Extreme_scenario == "wExtreme"){
+   p_j <- c(0.3,0.1,0.005)
+  }
+  if(nDatasets_val == 5 & Vary_Extreme_scenario == "wExtreme"){
+   p_j <- c(0.3,0.2,0.1,0.05,0.005)
+  }
+  if(nDatasets_val == 7 & Vary_Extreme_scenario == "wExtreme"){
+   p_j <- c(0.3,0.25,0.2,0.1,0.05,0.03,0.005)   
+  }
+}
+} # End of simulation study 1
+
+if(scenario = 1.5){
+  if(nDatasets_val == 3){
+    if(DetectProb_scenario == "Same"){
+       p_j <- c(0.15, 0.15, 0.15)
+    }
+    if(DetectProb_scenario == "Vary" ){
+      if(Vary_Extreme_scenario == "woExtreme") {
+         p_j <- c(0.3, 0.1, 0.05)
+      }
+      if(Vary_Extreme_scenario == "wExtreme"){
+         p_j <- c(0.3, 0.1, 0.005)
+      }
+    }
+  }
+} # End of scenario 1.5, low marginal coverage
+
+if(scenario == 1.6){
+  if(nDatasets_val == 3){
+    if(DetectProb_scenario == "Same"){
+      p_j <- c(0.25, 0.25, 0.25)
+    }
+    if(DetectProb_scenario == "Vary" ){
+      if(Vary_Extreme_scenario == "woExtreme") {
+         p_j <- c(0.3, 0.25, 0.1)
+      }
+      if(Vary_Extreme_scenario == "wExtreme"){
+         p_j <- c(0.3, 0.25, 0.005)
+      }
+    }
+  }
+} # End of scenario 1.6, middle marginal coverage
+
+if(scenario == 1.7){
+  if(nDatasets_val == 3){
+    if(DetectProb_scenario == "Same"){
+      p_j <- c(0.4, 0.4, 0.4)
+    }
+    if(DetectProb_scenario == "Vary" ){
+      if(Vary_Extreme_scenario == "woExtreme") {
+         p_j <- c(0.5, 0.4, 0.1)
+      }
+      if(Vary_Extreme_scenario == "wExtreme"){
+         p_j <- c(0.5, 0.4, 0.005)
+      }
+    }
+  }
+} # End of scenario 1.7, high marginal coverage
+
+list_effects_val <- genListEffects(p_j = p_j) 
+
+
+### Assign interrelationship between lists 
+WithFactorLoadings <- "no" # If yes, then generate Extended Mth, if no, then generate Mt
+
+if(WithFactorLoadings == "no"){
+  theta_sd_val <- NULL
+  alpha_val <- NULL
+  theta_ls_val <- NULL
+}
+```
+
+```{r Test one single set}
+# P <- P_val
+# nDatasets <- nDatasets_val
+# W <- W_val
+# 
+# beta0 <- beta0_val
+# eps_sd <- eps_sd_val
+# tau2 <- tau2_val
+# rho <- rho_val
+# list_effects <- list_effects_val
+# theta_sd <- theta_sd_val
+# alpha <- alpha_val
+# theta_ls <- theta_ls_val
+
+# set.seed(12345)
+```
+
+## Generate a single dataset 
+
+```{r Function to generate dataset}
+simuOneDataset <- function(P, nDatasets, W, 
+                           beta0, 
+                           eps_sd, tau2, rho,
+                           list_effects, 
+                           alpha, theta_ls){
+## MODEL 1 (SPATIAL PROCESS MODEL)
+K <- length(P)
+cov.inv_mat <- getSpatialCov(W, tau2 = tau2, rho = rho)
+p_prev_dt <- getPrev(cov.inv_mat = cov.inv_mat$Q.W_spam, beta0 = beta0, eps_sd = eps_sd, sample_size = 1)
+p_prev <- p_prev_dt$Prev
+spatialRE <- p_prev_dt$SpatialRE
+N_target <-  round(as.vector(P * p_prev), digits = 0) # For each location residents, given p_prev, draw number of OUD at each location # Do not use rbinom(n = K, size = P, prob = p_prev), this generates additional unnecessary randomness
+
+## MODEL 2 (DETECTION PROBABILITY MODEL) ###
+p_detect <- sapply(1:K, FUN = function(x) {getDetectProb(list_effects = list_effects, alpha, theta = theta_ls[[x]], n_target = N_target[x])}) # list of all locations, each element dim = N_target[x] * n_lists
+
+## Draw detection histories for all target population
+yfull <- lapply(p_detect, FUN = genYfull) # yfull a list = dim(p_detect), detection history across lists and locations
+
+## Make dataset with yfull (observed and unobserved)
+YfullTable <- makeYfullTable(yfull) # dim = sum(N_target) * J
+
+## Make dataset with observed subjects only
+# By location
+yObs_by_loc <- aggregate(YfullTable$obs_label, by=list(Location=YfullTable$loc_label), FUN=sum)
+# By list and location
+if(nDatasets == 3){
+yObs_by_list_loc_final <- data.frame(loc = aggregate(YfullTable$X1, list(YfullTable$loc_label), FUN=sum)[,1],
+                               n_obs_X1 = aggregate(YfullTable$X1, list(YfullTable$loc_label), FUN=sum)[,2],
+                               n_obs_X2 = aggregate(YfullTable$X2, list(YfullTable$loc_label), FUN=sum)[,2],
+                               n_obs_X3 = aggregate(YfullTable$X3, list(YfullTable$loc_label), FUN=sum)[,2])
+}
+if(nDatasets == 5){
+yObs_by_list_loc_final <- data.frame(loc = aggregate(YfullTable$X1, list(YfullTable$loc_label), FUN=sum)[,1],
+                               n_obs_X1 = aggregate(YfullTable$X1, list(YfullTable$loc_label), FUN=sum)[,2],
+                               n_obs_X2 = aggregate(YfullTable$X2, list(YfullTable$loc_label), FUN=sum)[,2],
+                               n_obs_X3 = aggregate(YfullTable$X3, list(YfullTable$loc_label), FUN=sum)[,2],
+                               n_obs_X4 = aggregate(YfullTable$X4, list(YfullTable$loc_label), FUN=sum)[,2],
+                               n_obs_X5 = aggregate(YfullTable$X5, list(YfullTable$loc_label), FUN=sum)[,2])
+}
+if(nDatasets == 7){
+yObs_by_list_loc_final <- data.frame(loc = aggregate(YfullTable$X1, list(YfullTable$loc_label), FUN=sum)[,1],
+                               n_obs_X1 = aggregate(YfullTable$X1, list(YfullTable$loc_label), FUN=sum)[,2],
+                               n_obs_X2 = aggregate(YfullTable$X2, list(YfullTable$loc_label), FUN=sum)[,2],
+                               n_obs_X3 = aggregate(YfullTable$X3, list(YfullTable$loc_label), FUN=sum)[,2],
+                               n_obs_X4 = aggregate(YfullTable$X4, list(YfullTable$loc_label), FUN=sum)[,2],
+                               n_obs_X5 = aggregate(YfullTable$X5, list(YfullTable$loc_label), FUN=sum)[,2],
+                               n_obs_X6 = aggregate(YfullTable$X6, list(YfullTable$loc_label), FUN=sum)[,2],
+                               n_obs_X7 = aggregate(YfullTable$X7, list(YfullTable$loc_label), FUN=sum)[,2])
+}
+
+# By list
+if(nDatasets == 3){
+empty_grid_list <- expand.grid(List1 = c(0,1), List2 = c(0,1), List3 = c(0,1))
+yObs_by_list <- aggregate(YfullTable$obs_label, by=list(List1 = YfullTable$X1,
+                                                        List2 = YfullTable$X2,
+                                                        List3 = YfullTable$X3), FUN=sum)
+# Get complete yObs table by list and location
+yObs_by_list_final <- merge(x = empty_grid_list, y = yObs_by_list, by.x = c("List1","List2","List3"),
+                          by.y = c("List1","List2","List3"), 
+                          all.x = TRUE)
+}
+if(nDatasets == 5){
+empty_grid_list <- expand.grid(List1 = c(0,1), List2 = c(0,1), List3 = c(0,1), List4 = c(0,1), List5 = c(0,1))
+yObs_by_list <- aggregate(YfullTable$obs_label, by=list(List1 = YfullTable$X1,
+                                                        List2 = YfullTable$X2,
+                                                        List3 = YfullTable$X3,
+                                                        List4 = YfullTable$X4,
+                                                        List5 = YfullTable$X5), FUN=sum)
+# Get complete yObs table by list and location
+yObs_by_list_final <- merge(x = empty_grid_list, y = yObs_by_list, by.x = c("List1","List2","List3","List4","List5"),
+                          by.y = c("List1","List2","List3","List4","List5"), 
+                          all.x = TRUE)
+}
+if(nDatasets == 7){
+empty_grid_list <- expand.grid(List1 = c(0,1), List2 = c(0,1), List3 = c(0,1), List4 = c(0,1), List5 = c(0,1), List6 = c(0,1), List7 = c(0,1))
+yObs_by_list <- aggregate(YfullTable$obs_label, by=list(List1 = YfullTable$X1,
+                                                        List2 = YfullTable$X2,
+                                                        List3 = YfullTable$X3,
+                                                        List4 = YfullTable$X4,
+                                                        List5 = YfullTable$X5,
+                                                        List6 = YfullTable$X6,
+                                                        List7 = YfullTable$X7), FUN=sum)
+# Get complete yObs table by list and location
+yObs_by_list_final <- merge(x = empty_grid_list, y = yObs_by_list, by.x = c("List1","List2","List3","List4","List5","List6","List7"),
+                          by.y = c("List1","List2","List3","List4","List5","List6","List7"), 
+                          all.x = TRUE)
+}
+
+# Refill 0
+yObs_by_list_final$x <- ifelse(is.na(yObs_by_list_final$x), 0, yObs_by_list_final$x)
+
+# Get effective PDetect from the generated data (supposedly irrelevant to location)
+yPDetect_final <- round(colSums(YfullTable[,1:nDatasets])/sum(N_target), digits = 3)
+
+DataInfoList <- list(YfullTable = YfullTable, # table of all Target population, including unobserved
+                     N_target = N_target, # N target at each K
+                     p_prev = p_prev, # prevalence at each K
+                     P = P, # general size of population at each K
+                     K = length(P), # number of locations
+                     J = nDatasets, # number of lists
+                     List_effects = list_effects, # lists' effect 
+                     PDetect = yPDetect_final, # computed J's detection probability (spatially invariant)
+                     cov_mat = cov.inv_mat$Sigma, # computed cov matrix for spatial RE (inverse of Q.W)
+                     cov.inv_mat = cov.inv_mat$Q.W, # computed precision matrix for spatial RE
+                     spatialRE = spatialRE, # spaital RE realizations
+                     eps_sd = eps_sd, # overall sd of prevalence
+                     yObs_by_loc = yObs_by_loc, # count n_ob by location k
+                     yObs_by_list_loc = yObs_by_list_loc_final, # count n_ob by nrows = K and ncol = J
+                     yObs_by_list = yObs_by_list_final # count n_obs by list j
+                     )
+
+return(DataInfoList)
+} # End of generating a single observed data set
+
+```
+
+## Simulation data
+
+```{r Generate datasets}
+
+### Simulation set up ###
+nsim <- 100
+set.seed(1)
+rand_seeds <- sample(1:9999999, size = nsim, replace = FALSE)
+
+### Save the simulation ###
+dtYfullTable_all_simu <- list() 
+dtNtarget_all_simu <- list()
+dtPprev_all_simu <- list()
+dtPDetect_all_simu <- list()
+dtCovMat_all_simu <- list()
+dtCovInvMat_all_simu <- list()
+dtSpatialRE_all_simu <- list()
+dtyObs_by_loc_all_simu <- list()
+dtyObs_by_list_loc_all_simu <- list()
+dtyObs_by_list_all_simu <- list()
+
+for(isim in 1:nsim){
+  set.seed(rand_seeds[isim])
+  
+  dt_one_simu <- simuOneDataset(P = P_val, W = W_val, nDatasets = nDatasets_val, 
+                                beta0 = beta0_val,
+                                eps_sd = eps_sd_val, tau2 = tau2_val, rho = rho_val,
+                                list_effects = list_effects_val, 
+                                alpha = alpha_val, theta_ls = theta_ls_val)
+  # Store
+  dtYfullTable_all_simu[[isim]] <- dt_one_simu$YfullTable # dim = N_targets * (J+3)
+  dtNtarget_all_simu[[isim]] <- dt_one_simu$N_target # vec
+  dtPprev_all_simu[[isim]] <- dt_one_simu$p_prev # mat
+  dtPDetect_all_simu[[isim]] <- dt_one_simu$PDetect # vec
+  dtCovMat_all_simu[[isim]] <- dt_one_simu$cov_mat # K*K mat
+  dtCovInvMat_all_simu[[isim]] <- dt_one_simu$cov.inv_mat # K*K mat
+  dtSpatialRE_all_simu[[isim]] <- dt_one_simu$spatialRE # vec of K
+  dtyObs_by_loc_all_simu[[isim]] <- dt_one_simu$yObs_by_loc # data.frame 
+  dtyObs_by_list_loc_all_simu[[isim]] <- dt_one_simu$yObs_by_list_loc # data.frame K*J
+  dtyObs_by_list_all_simu[[isim]] <- dt_one_simu$yObs_by_list # data.frame J permutation contingency table
+  
+  # Catch which simulation may get error and stop
+  print(paste("simulation ",isim, sep = ""))
+}
+
+## Save basic setup
+BasicSetUp = list(names_of_k = names_all_areas,
+                  P = P_val,
+                  K = K,
+                  J = nDatasets_val,
+                  W = W_val,
+                  D_w = D_w_val,
+                  beta0 = beta0_val,
+                  eps_sd = eps_sd_val,
+                  tau2 = tau2_val,
+                  rho = rho_val,
+                  list_effects = list_effects_val,
+                  theta_sd = theta_sd_val,
+                  alpha = alpha_val,
+                  theta_ls = theta_ls_val)
+saveRDS(BasicSetUp, paste0(save_to_where,"BasicSetUp.RData"))
+
+## Save each simulated data ##
+for(i in 1:nsim){
+  saveRDS(dtYfullTable_all_simu[[i]], file= paste0(save_to_where,"dtYfullTable_simu", i, ".RData"))
+  saveRDS(dtNtarget_all_simu[[i]], file= paste0(save_to_where,"dtNtarget_simu", i, ".RData"))
+  saveRDS(dtPprev_all_simu[[i]], file= paste0(save_to_where,"dtPprev_simu", i, ".RData"))
+  saveRDS(dtPDetect_all_simu[[i]], file= paste0(save_to_where,"dtPDetect_simu", i, ".RData"))
+  saveRDS(dtCovMat_all_simu[[i]], file= paste0(save_to_where,"dtCovMat_simu", i, ".RData"))
+  saveRDS(dtCovInvMat_all_simu[[i]], file= paste0(save_to_where,"dtCovInvMat_simu", i, ".RData"))  
+  saveRDS(dtSpatialRE_all_simu[[i]], file= paste0(save_to_where,"dtSpatialRE_simu", i, ".RData"))  
+  saveRDS(dtyObs_by_loc_all_simu[[i]], file= paste0(save_to_where,"dtyObs_by_loc_simu", i, ".RData"))
+  saveRDS(dtyObs_by_list_loc_all_simu[[i]], file= paste0(save_to_where,"dtyObs_by_list_loc_simu", i, ".RData"))
+  saveRDS(dtyObs_by_list_all_simu[[i]], file= paste0(save_to_where,"dtyObs_by_list_simu", i, ".RData"))
+}
+```

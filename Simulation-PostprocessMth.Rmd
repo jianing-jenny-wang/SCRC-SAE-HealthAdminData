@@ -1,0 +1,1252 @@
+---
+title: "Simulation-PostprocessMth"
+author: "Jianing Wang"
+date: "2023-04-29"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r packages and functions, include = FALSE, result = 'hide'}
+if (!require("dplyr")) install.packages("dplyr") else (require("dplyr", quietly = TRUE)) 
+if (!require("tidyr")) install.packages("tidyr") else (require("tidyr", quietly = TRUE)) 
+if (!require("data.table")) install.packages("data.table") else (require("data.table", quietly = TRUE)) 
+if (!require("reshape2")) install.packages("reshape2") else (require("reshape2", quietly = TRUE)) 
+if (!require("ggplot2")) install.packages("ggplot2") else (require("ggplot2", quietly = TRUE)) 
+if (!require("LaplacesDemon")) install.packages("LaplacesDemon") else (require("LaplacesDemon", quietly = TRUE)) 
+if (!require("miceadds")) install.packages("miceadds") else (require("miceadds", quietly = TRUE)) 
+if (!require("stringr")) install.packages("stringr") else (require("stringr", quietly = TRUE)) 
+if (!require("nimble")) install.packages("nimble") else (require("nimble", quietly = TRUE)) 
+
+## Path to functions
+path_to_funcs <- ".../Simulation/"
+source(paste(path_to_funcs, "data_simu_functions.r", sep = ""))
+source(paste(path_to_funcs, "postprocess_functions.r", sep = ""))
+
+## Save data
+path_to_data <- ".../Simulation/Simu_MCMC_Out/Mt/"
+path_to_GenData <- ".../Simulation/GenDt_Mt/"
+```
+
+```{r Specify case, include = FALSE}
+#### Choose the Scenario ####
+scenario <- 2.3 # extended Mth model starts with 2.
+nDatasets_val <- 3
+# If varying or not varying the detection probabilities
+DetectProb_scenario <- "Vary" # "Same_large" # "Same_small" # "Vary"
+# If including or excluding the extremely small data source
+Vary_Extreme_scenario <- "woExtreme" # "woExtreme" # "wExtreme" 
+
+case <- paste("Simu", scenario, "_J", nDatasets_val, DetectProb_scenario, Vary_Extreme_scenario, "PDetect", sep = "")
+
+#### Remove the list with lowest catachability ####
+Remove_Smallest_List <- "yes"
+```
+
+
+```{r Basic setup, include = FALSE}
+
+K <- 88
+J <- nDatasets_val
+D <- 1
+
+if(DetectProb_scenario != "Vary"){
+  if(DetectProb_scenario == "Same_large"){
+  p_j <- seq(0.3, J)
+  }
+  if(DetectProb_scenario == "Same_small"){
+  p_j <- seq(0.03, J)
+}
+  path_to_GenDt <- paste(path_to_GenData, "Simu", scenario, "_J", J, "_", DetectProb_scenario, "PDetect/", sep = "")
+  path_to_input <- paste(path_to_data, "Simu",scenario,"_J", J, "_", DetectProb_scenario, "PDetect/", sep = "")
+  path_to_output <- paste(path_to_data, "SummarySimus/Simu",scenario,"_J", J, "_", DetectProb_scenario, "PDetect/", sep = "")
+}
+
+if(DetectProb_scenario == "Vary"){
+  if(Vary_Extreme_scenario == "woExtreme"){
+      if(J == 3){
+        p_j <- c(0.3, 0.1, 0.05)
+      }
+      if(J == 5){
+        p_j <- c(0.3,0.2,0.1,0.05,0.03)
+      }
+      if(J == 7){
+        p_j <- c(0.3,0.25,0.2,0.1,0.05,0.04,0.03)
+      }
+  }
+  if(Vary_Extreme_scenario == "wExtreme"){
+      if(J == 3){
+        p_j <- c(0.3, 0.1, 0.005)
+      }
+      if(J == 5){
+        p_j <- c(0.3,0.2,0.1,0.05,0.005)
+      }
+      if(J == 7){
+        p_j <- c(0.3,0.25,0.2,0.1,0.05,0.03,0.005)
+      }
+  }
+    path_to_GenDt <- paste(path_to_GenData, "Simu", scenario, "_J", J, "_", DetectProb_scenario, Vary_Extreme_scenario, "PDetect/", sep = "")
+    if(Remove_Smallest_List == "no"){
+      path_to_input <- paste(path_to_data, "Simu",scenario,"_J", J, "_", DetectProb_scenario, Vary_Extreme_scenario, "PDetect/", sep = "")
+      path_to_output <- paste(path_to_data, "SummarySimus/Simu",scenario,"_J", J, "_", DetectProb_scenario, Vary_Extreme_scenario, "PDetect/", sep = "")
+      }else{path_to_input <- 
+        paste(path_to_data, "Simu",scenario,"_J", J, "_", DetectProb_scenario, Vary_Extreme_scenario, "PDetect/woSmallestJ/", sep = "")
+      path_to_output <- paste(path_to_data, "SummarySimus/Simu",scenario,"_J", J, "_", DetectProb_scenario, Vary_Extreme_scenario, "PDetect/woSmallestJ/", sep = "")}
+}
+
+if(scenario = 2.5){
+  if(nDatasets_val == 3){
+    if(DetectProb_scenario == "Same"){
+       p_j <- c(0.15, 0.15, 0.15)
+       path_to_GenDt <- paste(path_to_GenData, "Simu", scenario, "_J", J, "_", DetectProb_scenario, "PDetect/", sep = "")
+       path_to_input <- paste(path_to_data, "Simu",scenario,"_J", J, "_", DetectProb_scenario, "PDetect/", sep = "")
+       path_to_output <- paste(path_to_data, "SummarySimus/Simu",scenario,"_J", J, "_", DetectProb_scenario, "PDetect/", sep = "")
+    }
+    if(DetectProb_scenario == "Vary" ){
+      if(Vary_Extreme_scenario == "woExtreme") {
+         p_j <- c(0.3, 0.1, 0.05)
+      }
+      if(Vary_Extreme_scenario == "wExtreme"){
+         p_j <- c(0.3, 0.1, 0.005)
+      }
+      path_to_GenDt <- paste(path_to_GenData, "Simu", scenario, "_J", J, "_", DetectProb_scenario, Vary_Extreme_scenario, "PDetect/", sep = "")
+      path_to_input <- paste(path_to_data, "Simu",scenario,"_J", J, "_", DetectProb_scenario, Vary_Extreme_scenario, "PDetect/", sep = "")
+      path_to_output <- paste(path_to_data, "SummarySimus/Simu",scenario,"_J", J, "_", DetectProb_scenario, Vary_Extreme_scenario, "PDetect/", sep = "")
+    }
+  }
+} # End of scenario 2.5, low marginal coverage
+
+if(scenario = 2.6){
+  if(nDatasets_val == 3){
+    if(DetectProb_scenario == "Same"){
+       p_j <- c(0.25, 0.25, 0.25)
+       path_to_GenDt <- paste(path_to_GenData, "Simu", scenario, "_J", J, "_", DetectProb_scenario, "PDetect/", sep = "")
+       path_to_input <- paste(path_to_data, "Simu",scenario,"_J", J, "_", DetectProb_scenario, "PDetect/", sep = "")
+       path_to_output <- paste(path_to_data, "SummarySimus/Simu",scenario,"_J", J, "_", DetectProb_scenario, "PDetect/", sep = "")
+    }
+    if(DetectProb_scenario == "Vary" ){
+      if(Vary_Extreme_scenario == "woExtreme") {
+         p_j <- c(0.3, 0.25, 0.1)
+      }
+      if(Vary_Extreme_scenario == "wExtreme"){
+         p_j <- c(0.3, 0.25, 0.005)
+      }
+      path_to_GenDt <- paste(path_to_GenData, "Simu", scenario, "_J", J, "_", DetectProb_scenario, Vary_Extreme_scenario, "PDetect/", sep = "")
+      path_to_input <- paste(path_to_data, "Simu",scenario,"_J", J, "_", DetectProb_scenario, Vary_Extreme_scenario, "PDetect/", sep = "")
+      path_to_output <- paste(path_to_data, "SummarySimus/Simu",scenario,"_J", J, "_", DetectProb_scenario, Vary_Extreme_scenario, "PDetect/", sep = "")
+    }
+  }
+} # End of scenario 2.6, middle marginal coverage
+
+if(scenario = 2.7){
+  if(nDatasets_val == 3){
+    if(DetectProb_scenario == "Same"){
+       p_j <- c(0.4, 0.4, 0.4)
+       path_to_GenDt <- paste(path_to_GenData, "Simu", scenario, "_J", J, "_", DetectProb_scenario, "PDetect/", sep = "")
+       path_to_input <- paste(path_to_data, "Simu",scenario,"_J", J, "_", DetectProb_scenario, "PDetect/", sep = "")
+       path_to_output <- paste(path_to_data, "SummarySimus/Simu",scenario,"_J", J, "_", DetectProb_scenario, "PDetect/", sep = "")
+    }
+    if(DetectProb_scenario == "Vary" ){
+      if(Vary_Extreme_scenario == "woExtreme") {
+         p_j <- c(0.5, 0.4, 0.1)
+      }
+      if(Vary_Extreme_scenario == "wExtreme"){
+         p_j <- c(0.5, 0.4, 0.005)
+      }
+      path_to_GenDt <- paste(path_to_GenData, "Simu", scenario, "_J", J, "_", DetectProb_scenario, Vary_Extreme_scenario, "PDetect/", sep = "")
+      path_to_input <- paste(path_to_data, "Simu",scenario,"_J", J, "_", DetectProb_scenario, Vary_Extreme_scenario, "PDetect/", sep = "")
+      path_to_output <- paste(path_to_data, "SummarySimus/Simu",scenario,"_J", J, "_", DetectProb_scenario, Vary_Extreme_scenario, "PDetect/", sep = "")
+    }
+  }
+} # End of scenario 2.7, high marginal coverage
+```
+
+
+```{r MCMC configuration, include=FALSE}
+NIMBLE_Setup <- list.files(path = path_to_input, pattern = 'NIMBLE_Setup_(simu\\d+).Rdata$')
+
+if(!identical(NIMBLE_Setup, character(0))){
+
+# Find number of simulations
+nsim <- length(NIMBLE_Setup)
+
+# Obtain MCMC configuration setup
+NIMBLE_Setup_list <- lapply(NIMBLE_Setup, function (x) readRDS(paste(path_to_input,x,sep = "")))
+nchains_all_simu <- c()
+niter_all_simu <- c()
+nburnin_all_simu <- c()
+nthin_all_simu <- c()
+nsamples_all_simu <- c()
+sd_spRE_prior_all_simu <- c()
+sigma_mu_all_simu <- c()
+
+for(task_id in 1:nsim){
+  NIMBLE_Setup_simu_i <- NIMBLE_Setup_list[[task_id]]
+
+  nchains_simu_i <- NIMBLE_Setup_simu_i$nchains
+  nchains_all_simu <- unique(c(nchains_all_simu, nchains_simu_i))
+
+  niter_simu_i <- NIMBLE_Setup_simu_i$niter
+  niter_all_simu <- unique(c(niter_all_simu, niter_simu_i))
+
+  nburnin_simu_i <- NIMBLE_Setup_simu_i$nburnin
+  nburnin_all_simu <- unique(c(nburnin_all_simu, nburnin_simu_i))
+
+  nthin_simu_i <- NIMBLE_Setup_simu_i$nthin
+  nthin_all_simu <- unique(c(nthin_all_simu, nthin_simu_i))
+
+  nsamples_simu_i <- NIMBLE_Setup_simu_i$nsamples
+  nsamples_all_simu <- unique(c(nsamples_all_simu, nsamples_simu_i))
+
+  if(Use_HalfCauchy_Variance_Prior == "yes"){
+    sd_spRE_prior_simu_i <- NIMBLE_Setup_simu_i$sd_spRE_prior
+    sd_spRE_prior_all_simu <- unique(c(sd_spRE_prior_all_simu, sd_spRE_prior_simu_i))
+  }
+
+  sigma_mu_simu_i <- NIMBLE_Setup_simu_i$sigma_mu
+  sigma_mu_all_simu <- unique(c(sigma_mu_all_simu, sigma_mu_simu_i))
+}
+}
+
+```
+
+The number of MCMC samples that were saved within a simulation:
+
+```{r N MCMC samples per simulation, echo = FALSE}
+## If NIMBLE_Setup exist
+if(!identical(NIMBLE_Setup, character(0))){
+  print(paste("Number of MCMC samples saved within a simulation is:"
+, nsamples_all_simu, sep = " "))
+}
+```
+
+
+```{r Import map data, include = FALSE}
+## Import the county boundary files 
+path_to_map_data <- ".../Simulation/MapData/"
+census_adj <- read.csv(paste(path_to_map_data,"OHData/OHcounties_adjacency2010.csv", sep = ""))
+## Obtain the names of K 
+names_of_k <- colnames(census_adj)
+OH_cty_names <- data.frame(ID = seq(1:K),
+                           OH_Counties_Names = names_of_k)
+```
+
+
+```{r Read true vallues, include = FALSE}
+TrueVals <- list.files(path = path_to_input, pattern = 'TrueVals_(simu\\d+).Rdata$')
+
+## Find number of simulations 
+nsim <- length(TrueVals)
+## Find which simulation runs through 
+simu_ran_through <- c()
+for(task_id in 1:nsim){
+  which_ran_through <- str_extract_all(TrueVals[task_id],"\\(?[0-9]+\\)?")
+  simu_ran_through <- c(simu_ran_through,which_ran_through)
+}
+simu_ran_through_raw_order <- as.numeric(unlist(simu_ran_through))
+## Sort the simulation indices
+simu_ran_through_sort <- sort(as.numeric(do.call(c,simu_ran_through)))
+
+
+## Obtain true values 
+TrueVals_list <- lapply(TrueVals, function (x) readRDS(paste(path_to_input,x,sep = "")))
+TrueTotalN_target_all_simu <- c()
+TrueTotalN_obs_all_simu <- c()
+TrueN_target_all_simu <- matrix(NA, nrow = nsim, ncol = K)
+TruePrev_all_simu <- matrix(NA, nrow = nsim, ncol = K)
+True_list_effects_all_simu <- matrix(NA, nrow = nsim, ncol = J)
+TrueBaseline_prev_all_simu <- c()
+TrueSigma2.phi_all_simu <- c()
+TrueSpatialRE_all_simu <- matrix(NA, nrow = nsim, ncol = K)
+for(task_id in 1:nsim){
+  TrueVals_simu_i <- TrueVals_list[[task_id]]
+
+  TrueTotalN_target_simu_i <- TrueVals_simu_i$TotalN_target
+  TrueTotalN_target_all_simu <- c(TrueTotalN_target_all_simu, TrueTotalN_target_simu_i)
+  
+  TrueTotalN_obs_simu_i <- TrueVals_simu_i$TotalN_obs
+  TrueTotalN_obs_all_simu <- c(TrueTotalN_obs_all_simu, TrueTotalN_obs_simu_i)
+  
+  TrueN_target_simu_i <- TrueVals_simu_i$N_target
+  TrueN_target_all_simu[task_id,] <- TrueN_target_simu_i
+  
+  TruePrev_simu_i <- TrueVals_simu_i$Prev
+  TruePrev_all_simu[task_id,] <- TruePrev_simu_i
+  
+  ## All the following ones use the designed values, rather than the empirical values.
+  True_list_effects_simu_i <- TrueVals_simu_i$Theoretical_list_effects # theoretical list effect values
+  True_list_effects_all_simu[task_id,] <-  True_list_effects_simu_i
+  
+  TrueBaseline_prev_simu_i <- TrueVals_simu_i$Basline_prev
+  TrueBaseline_prev_all_simu <- c(TrueBaseline_prev_all_simu, TrueBaseline_prev_simu_i)
+  
+  TrueSigma2.phi_simu_i <- TrueVals_simu_i$Sigma2.phi
+  TrueSigma2.phi_all_simu <- c(TrueSigma2.phi_all_simu, TrueSigma2.phi_simu_i)
+
+  TrueSpatialRE_simu_i <- TrueVals_simu_i$SpatialRE
+  TrueSpatialRE_all_simu[task_id,] <- TrueSpatialRE_simu_i
+}
+```
+
+```{r Import empirical true values, echo = FALSE}
+## The following ones use the computed empirical values from the true generated data 
+## Empirical computed pdetect across simulations
+EmpiricalPDetect_val <- list.files(path = path_to_GenDt, pattern = 'dtPDetect_(simu\\d+).RData$')
+## Empirical YfullTable across simulations
+EmpiricalYfullTable_val <- list.files(path = path_to_GenDt, pattern = 'dtYfullTable_(simu\\d+).RData$')
+## Empirical observed counts by locations across simulations
+EmpiricalObs_byLoc_val <- list.files(path = path_to_GenDt, pattern = "dtyObs_by_loc_(simu\\d+).RData$")
+## Empirical general populaiton size by locations across simulations
+BasicSetUp_val <- readRDS(paste0(path_to_GenDt, "BasicSetUp.RData"))
+
+
+simu_true <- c()
+for(task_id in 1:nsim){
+  which_true_generated <- str_extract_all(EmpiricalPDetect_val[task_id],"\\(?[0-9]+\\)?")
+  simu_true <- c(simu_true,which_true_generated)
+}
+simu_true_raw_order <- as.numeric(unlist(simu_true))
+which_not_run <- which(!simu_true_raw_order %in% simu_ran_through_raw_order)
+if(!identical(which_not_run, integer(0))){
+EmpiricalPDetect_val <- EmpiricalPDetect_val[-which_not_run]
+EmpiricalYfullTable_val <- EmpiricalYfullTable_val[-which_not_run]
+EmpiricalObs_byLoc_val <- EmpiricalObs_byLoc_val[-which_not_run]
+}
+
+## Summarize for those actually ran through 
+## Empirical list effects
+EmpiricalPDetect_val_list <- lapply(EmpiricalPDetect_val, function (x) readRDS(paste(path_to_GenDt,x,sep = "")))
+EmpiricalPDetect_val_all_simu <- matrix(NA, nrow = nsim, ncol = J)
+for(task_id in 1:nsim){
+  EmpiricalPDetect_val_simu_i <- EmpiricalPDetect_val_list[[task_id]]
+  EmpiricalPDetect_val_all_simu[task_id,] <-  EmpiricalPDetect_val_simu_i[1:J]
+}
+Empirical_ListEffect_val_all_simu <- logit(EmpiricalPDetect_val_all_simu)
+
+## Empirical pdetect by lists
+EmpiricalYfullTable_val_list <- lapply(EmpiricalYfullTable_val, function (x) readRDS(paste(path_to_GenDt,x,sep = "")))
+EmpiricalNobs_byList_all_simu <- matrix(NA, nrow = nsim, ncol = J)
+EmpiricalCapturability_byList_all_simu <- matrix(NA, nrow = nsim, ncol = J)
+Prop_overlap_all_simu <- c()
+for(task_id in 1:nsim){
+  ## Empirical N observed by list
+  EmpiricalNobs_byList_simu_i <- colSums(EmpiricalYfullTable_val_list[[task_id]][,1:J])
+  EmpiricalNobs_byList_all_simu[task_id,] <-  EmpiricalNobs_byList_simu_i
+  ## Empirical Capturability by list
+  EmpiricalCapturability_byList_i <- colSums(EmpiricalYfullTable_val_list[[task_id]][,1:J])/TrueTotalN_target_all_simu[task_id]
+  EmpiricalCapturability_byList_i <- round(EmpiricalCapturability_byList_i, digits = 5)
+  EmpiricalCapturability_byList_all_simu[task_id,] <- EmpiricalCapturability_byList_i
+  ## Empirical N observed who observed by more than one lists (overlapped across lists)
+  Ncaptures_vec_simu_i <- apply(EmpiricalYfullTable_val_list[[task_id]][,1:J],1, sum)
+  Nobs_overlap_simu_i <- sum(Ncaptures_vec_simu_i > 1)
+  Prop_overlap_simu_i <- Nobs_overlap_simu_i/TrueTotalN_target_all_simu[task_id] # this equation only work when lists are independent
+  Prop_overlap_all_simu <- c(Prop_overlap_all_simu, Prop_overlap_simu_i)
+}
+
+## Mean Empirical N observed by areas 
+EmpiricalNObs_byLoc_val_list <- lapply(EmpiricalObs_byLoc_val, function (x) readRDS(paste(path_to_GenDt,x,sep = "")))
+EmpiricalNObs_byLoc_val_all_simu <- matrix(NA, nrow = K, ncol = nsim)
+for(task_id in 1:nsim){
+  EmpiricalNObs_byLoc_val_simu_i <- EmpiricalNObs_byLoc_val_list[[task_id]] 
+  EmpiricalNObs_byLoc_val_all_simu[,task_id] <- EmpiricalNObs_byLoc_val_simu_i[,2] # keep the value of n obs by areas
+}
+EmpiricalNObs_byLoc_val_all_simu <- data.frame(Area_Names =  BasicSetUp_val$names_of_k,
+                                               EmpiricalNObs_byLoc_val_all_simu)
+Mean_EmpiricalNObs_byLoc <- apply(EmpiricalNObs_byLoc_val_all_simu[,2:ncol(EmpiricalNObs_byLoc_val_all_simu)], 1 ,mean)
+Mean_EmpiricalNObs_byLoc <- data.frame(Area_Names =  BasicSetUp_val$names_of_k,
+                                      Mean_EmpiricalNObs_byLoc = round( Mean_EmpiricalNObs_byLoc,0))
+
+## Empirical general P by areas
+Empirical_Pk <- BasicSetUp_val$P
+Empirical_Pk <- data.frame(Area_Names = BasicSetUp_val$names_of_k,
+                           Empirical_Pk)
+
+```
+
+Number of simulations that are ran through is:
+
+```{r Number of simultions that run through, echo = FALSE}
+nsim
+```
+
+The effective mean/sd area-specific prevalence computed from the generated data is:
+
+```{r Empirical true prevalence across simu, echo = FALSE}
+Mean_sd_EmpiricalPrev <- apply(TruePrev_all_simu, 2, FUN = function(x){
+  mean_x <- mean(x)
+  sd_x <- sd(x)
+  res <- c(Mean_Empirical_TruePrev = mean_x,
+                    sd_Empirical_TruePrev = sd_x)
+  res <- round(res, digits = 3)
+  return(res)
+})
+
+Mean_sd_EmpiricalPrev
+```
+
+To evaluate if the overall capturability is a parameter driving the performance of the model, we summarize the empirical probability of being observed by at least one list (marginal capturability). This is:
+
+```{r Marginal empirical capturability, echo = FALSE}
+EmpiricalCapturability_all_simu <- TrueTotalN_obs_all_simu/TrueTotalN_target_all_simu
+Mean_EmpiricalCapturability <- round(mean(EmpiricalCapturability_all_simu),digits = 4)
+sd_EmpiricalCapturability <- round(sd(EmpiricalCapturability_all_simu),4)
+print(paste("The mean of probability of being observed by at least one list is ", Mean_EmpiricalCapturability, " (i.e., ", Mean_EmpiricalCapturability*100, "% of target subjects being ever observed).", sep = ""))
+print(paste("The sd of probability of being observed by at least one list is", sd_EmpiricalCapturability, sep = " "))
+```
+
+The empirical mean/sd list-specific detection probability that are computed from the generated data is:
+
+```{r empirical true detection probability across simu, echo = FALSE }
+## The empirical mean/sd of detection probabilities from the generated data (should be the same as below if this was computed from yfull data using counts of nobs)
+mean_sd_EmpiricalPDetect <- apply(EmpiricalPDetect_val_all_simu, 2, FUN = function(x){
+  mean_x <- mean(x)
+  sd_x <- sd(x)
+  res <- c(mean_Empirical_TrueDetectProb = mean_x,
+          sd_Empirical_TrueDetectProb = sd_x)
+  res <- round(res, digits = 3)
+  return(res)
+})
+## The empirical mean/sd capturabitlity by list computed from the yfull data is:
+mean_sd_EmpiricalCapturability <- apply(EmpiricalCapturability_byList_all_simu, 2, FUN = function(x){
+  mean_x <- mean(x)
+  sd_x <- sd(x)
+  res <- c(mean_EmpiricalCapturability_byList = mean_x,
+          sd_EmpiricalCapturability_byList = sd_x)
+  res <- round(res, digits = 3)
+  return(res)
+})
+mean_sd_EmpiricalCapturability
+```
+
+The empirical mean/sd list effects that are computed from the generated data is:
+
+```{r Empirical true list effects across simu, echo = FALSE}
+
+mean_sd_EmpiricalListEffects <- apply(Empirical_ListEffect_val_all_simu, 2, FUN = function(x){
+  mean_x <- mean(x)
+  sd_x <- sd(x)
+  res <- c(mean_Empirical_TrueListEffects = mean_x,
+          sd_Empirical_TrueListEffects = sd_x)
+  res <- round(res, digits = 3)
+  return(res)
+})
+mean_sd_EmpiricalListEffects
+```
+
+The empirical proportion of target people that were observed by more than one list (overlap across lists) is:
+
+```{r Empirical overall proportion, echo = FALSE}
+mean_Prop_overlap_all_simu <- round(mean(Prop_overlap_all_simu), digits = 4)
+sd_Prop_overlap_all_simu <- round(sd(Prop_overlap_all_simu), digits = 4)
+print(paste("Mean of the computed proportion is", mean_Prop_overlap_all_simu, sep = " "))
+print(paste("SD of the computed proportion is", sd_Prop_overlap_all_simu, sep = " "))
+```
+
+## Summary of the Area-Specific Prevalence
+
+This summary of the area-specific prevalence reflect the variation of the prevalence in the generated data. By assigning the same spatial variation and only changing the number of data sources (lists), the summary of the prevalence should be the same across $J=3$, $J=5$, and $J=7$.
+
+```{r TruePrev, echo = FALSE}
+summary_truePrev(true_samples = TruePrev_all_simu)
+```
+
+## Check Convergency
+
+Return which simulation didn't pass the GR.diag check. 
+
+```{r check convergency,  echo = FALSE}
+samples_Mod <- list.files(path = path_to_input, pattern = paste('mcmc.out_',models, 'mcmc.out_ModMthICAR_samples_(simu\\d+).Rdata$', sep = ""))
+samples_Mod_list <- lapply(samples_Mod, function (x) readRDS(paste(path_to_input,x,sep = "")))
+
+## Check convergence
+GR.diag_Check_ls <- list()
+for (i in 1:nsim){
+GR.diag <- gelman.diag(samples_Mod_list[[i]], multivariate = FALSE)
+GR.diag_PE <- GR.diag$psrf[,"Point est."]
+Converge_GR.diag <- all(GR.diag_PE <= 1.1) 
+Converge_Issue_GR.diag <- names(which(GR.diag$psrf[,"Point est."] > 1.1))
+if(Converge_GR.diag){
+  GR.diag_Check <- data.frame(If_Converge_GR.diag =  TRUE, Which_Converge_Issue_GR.diag = "NONE")
+}else{
+  GR.diag_Check <- data.frame(If_Converge_GR.diag =  rep(FALSE, length(Converge_Issue_GR.diag)), Which_Converge_Issue_GR.diag = Converge_Issue_GR.diag)
+}
+GR.diag_Check_ls[[i]] <- GR.diag_Check
+}
+
+GR.diag_Check_dt <- do.call(rbind, GR.diag_Check_ls)
+## Frequency of each parameter that got failed in GR.diagnosis check
+table(GR.diag_Check_dt$Which_Converge_Issue_GR.diag)
+
+```
+
+## Check Rhat
+
+```{r Rhat}
+## Plot Rhat
+par(mfrow=c(1,select_size))
+ICAR_ggmcmc <- ggs(samples_Mod_list[[random_show_index]]) 
+ICAR_ggmcmc %>% filter(Parameter == c("N", paste0("pesudo_logit_prev[", col_index, "]"), "sigma2.phi", "beta0", paste0("logit_list_effects[", 1:J, "]"), paste0("loading_mat_upper_tri[", 1:J, ", ", D,"]"))) %>% 
+  ggs_Rhat() + xlab("R_hat") + theme_bw() + theme(text = element_text(size = 16))
+par(mfrow=c(1,1))
+```
+
+## Measures
+
+In the following formula of measures for the evaluation, a generic parameter $\theta$ is used to stand for all kinds of parameters of interest.
+
+\textbf{MSE (RMSE)} is computed as
+
+$$
+    \text{MSE} = \frac{1}{S}\sum_{s=1}^{S}(\sum_{k=1}^{K}\hat{\theta}_{k}^{(s)} - \sum_{k=1}^{K}\theta_{k}^{(s)})^{2}, \\
+    \text{RMSE} = \sqrt(\frac{1}{S}\sum_{s=1}^{S}(\sum_{k=1}^{K}\hat{\theta}_{k}^{(s)} - \sum_{k=1}^{K}\theta_{k}^{(s)})^{2}), \\
+$$
+
+where $S$ indicates simulations, $\theta^{(s)}$ indicates true value of the key parameter from each simulated data $s$, and $\hat{\theta^{(s)}}$ indicates estimated value of the key parameter using the simulated data $s$.
+
+\textbf{MAE} is computed as 
+
+$$
+ \text{MAE} = \text{med}(|\sum_{k=1}^{K}\hat{\theta}_{k}^{(s)} - \sum_{k=1}^{K}\theta_{k}^{(s)}|)
+$$
+
+\textbf{Mean relative bias} is computed as 
+
+$$
+\overline{\text{Rel.Bias}} = \frac{1}{S}\sum_{s=1}^{S}(\frac{\sum_{k=1}^{K}\hat{\theta}_{k}^{(s)}}{\sum_{k=1}^{K}\theta_{k}^{(s)}})   
+$$
+
+\textbf{Mean coverage (95% or 50%)} is computed as
+
+$$
+    P(\hat{l}_{s,(k)} \le \theta_{s,(k)} \le \hat{u}_{s,(k)}) = \frac{(\sum_{s=1}^{S}I(\hat{l}_{s,(k)} \le \theta_{s,(k)} \le \hat{u}_{s,(k)}))}{S}.
+$$
+where $I(\cdot)$ is an indicator function which return the value 1 if the true prevalence $\theta_{s,(k)}$ (if Area-wise, then $k$ subscription is applied) lies between the lower bound $\hat{l}_{s,(k)}$ and upper bound $\hat{u}_{s,(k)}$ of the 95\% (50\%) credible intervals for the fitted model, otherwise returns value $0$.
+
+\textbf{T-test of the computed bias:}
+
+In addition, I compute the difference of the estimates from the true parameter values, the computed bias is then evaluated through a t-test with $\alpha = 0.05$. A significant p-value reflect strong indication of the bias.
+
+\textbf{Consistency of the ranking:}
+
+To summarize the accuracy of estimating the hot/cool spots, we perform graphical and hypothesis tests to summarize the consistency of the ranking of prevalence in the estimated map versus the true map.
+
+There are several ways to perform non-parametric test on this. Below are some test that can \textbf{uniformly} calculate/test the consistency of the ranking.
+
+<!-- Reference: -->
+<!-- https://bookdown.org/thomas_pernet/Tuto/non-parametric-tests.html -->
+<!-- https://stackoverflow.com/questions/59683752/correlation-between-groups-and-ranks-over-different-samples-with-r -->
+<!-- https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6813708/#:~:text=The%20One%2Dway%20ANOVA%20is,three%20or%20more%20independent%20groups). -->
+
+1) Kruskal-Wallis rank sum test 
+
+This is an extension to one-way ANOVA but here we only have two groups, thus it should be an alternative test for t-test when the data is not necessarilty normally distributed.
+
+H0: the rankings are from the same distribution for all samples.
+
+2)  Wilcoxon signed-rank test
+
+Wilcoxon rank-sum test (equivalent to Wilcoxon-Mann-Whitney test and Mann-Whitney U test) and Wilcoxon signed-rank test were proposed by Frank Wilcoxon in a single paper.599 Wilcoxon rank-sum test is used to compare two independent samples, while Wilcoxon signed-rank test is used to compare two related samples, matched samples, or to conduct a paired difference test of repeated measurements on a single sample to assess whether their population mean ranks differ. They are nonparametric alternatives to the unpaired and paired Student's t-tests (also known as “t-test for matched pairs” or “t-test for dependent samples”), respectively. The two nonparametric tests do not assume that the samples are normally distributed.
+
+? What is the difference from the Pairwise Wilcoxon test?
+
+3) Spearman rank correlation coefficient
+
+<!-- Reference -->
+<!-- https://statistics.laerd.com/statistical-guides/spearmans-rank-order-correlation-statistical-guide.php -->
+<!-- https://rpubs.com/aaronsc32/spearman-rank-correlation -->
+<!-- https://www.statology.org/spearman-correlation-in-r/ -->
+
+Formula without a tied rank is:
+
+$$
+\rho = 1 - \frac{6\sum_{i}d^{2}_{i}}{n(n^{2}-1)}
+$$
+where where $d_{i}$ = difference in paired ranks and $n$ = number of cases.
+
+We compute the coefficient between two paired area-specific mean prevalence values (true values and estimated values), where the mean values are the average from the simulations.
+
+The Spearman's correlation coefficient shows the association between ranks. If the calculated $\rho \in (0.5, 1)$, then it means the larger rank in the estimated prevalence results corresponds to the larger rank in the true prevalence. This is what we wanted. 
+
+In the test, we set the alternative hypothesis is "greater" to see if the test significantely shows a positive association.
+
+4) Normalized Discounted Cumulative Gain (NDCG)
+
+If we want to penalize the wrong rank at the top ones, we can consider Normalized Discounted Cumulative Gain (NDCG):
+
+<!-- Reference:  -->
+<!-- https://www.geeksforgeeks.org/normalized-discounted-cumulative-gain-multilabel-ranking-metrics-ml/?tab=article -->
+
+Step 1: Order (descending) the areas by the estimated prevalence (mean prevalence across simulation)
+
+Step 2: According to ranked area $k$, add the rank of the true prevalence, called "$\text{true rank}_{k}$".
+
+Step 3: Compute discounted cumulative gain can be calculated by the formula: 
+
+$$
+\text{DCG} = \sum_{k=1}^{K}\frac{\text{true rank}_{k}}{log_{2}(k+1)}
+$$
+Step 4: Now we need to arrange these articles in descending order by rankings and calculate DCG to get the Ideal Discounted Cumulative Gain (IDCG) ranking. 
+
+$$
+\text{IDCG} = \sum_{k=1}^{K}\frac{\text{oredered true rank}_{k}}{log_{2}(k+1)}
+$$
+
+Step 5: Normalized DCG is given by,
+
+$$
+\text{nDCG} = \frac{DCG_{K}}{IDCG_{K}}
+$$
+
+
+## Total N target
+
+### Check the Trace and acf Plots
+
+```{r CheckAcf TargetN, fig.show="hold", out.width='60%'}
+## Autocorrelation ##
+par(mfrow=c(2,2))
+for(i in random_show_index){
+  for(chain_i in 1:NIMBLE_Setup_list[[i]]$nchains)
+  acf(combodt_samp_N_list[[i]]$Ntarget[which(combodt_samp_N_list[[i]]$Chains==chain_i)])
+}
+par(mfrow=c(1,1))
+
+## Mix trace plots - check chains convergence##
+color_scheme_set("mix-blue-red")
+mcmc_trace(samples_Mod_list[[random_show_index]], pars = c("N"))  +
+  labs (x='Iteration',y='N value',title='Total target population (N)') 
+```
+
+### MSE, RMSE, MAE, Relative Bias on Total N
+
+```{r check TotalNtarget,  echo = FALSE}
+samp_TotalNtarget <- list.files(path = path_to_input, pattern = 'mcmc.out_ModMthICAR_N_(simu\\d+).Rdata$')
+samp_TotalNtarget_list <- lapply(samp_TotalNtarget, function (x) readRDS(paste(path_to_input,x,sep = "")))
+samp_TotalNtarget_mean <- sapply(samp_TotalNtarget_list, FUN = function(x){Ntarget <- x[,2] 
+                                                                 mean(Ntarget)
+                                                                 })
+measures_TotalNtarget <- Comp.Bias.RMSE.MAE.vec(est = samp_TotalNtarget_mean, truevalue = TrueTotalN_target_all_simu, nsim = nsim)
+measures_TotalNtarget
+```
+
+### Percentage of Coverage of True Total N
+
+```{r check coverage of total N,  echo = FALSE}
+
+Qrs_TotalNtarget <- t(sapply(1:nsim, FUN = function(x) {
+                                           res <- quantile(samp_TotalNtarget_list[[x]][,2], probs = c(0.025,0.25,0.75,0.975))
+                                           res <- round(res, digits = 0)
+                                           }
+                                           ))
+In95Crl_TotalNtarget <- 0
+In50Crl_TotalNtarget <- 0
+for(i in 1:nsim){
+  if(TrueTotalN_target_all_simu[i] <= Qrs_TotalNtarget[i,4] & TrueTotalN_target_all_simu[i] >= Qrs_TotalNtarget[i,1]){
+    In95Crl_TotalNtarget <- In95Crl_TotalNtarget + 1
+  }else{In95Crl_TotalNtarget <- In95Crl_TotalNtarget}
+  if(TrueTotalN_target_all_simu[i] <= Qrs_TotalNtarget[i,3] & TrueTotalN_target_all_simu[i] >= Qrs_TotalNtarget[i,2]){
+    In50Crl_TotalNtarget <- In50Crl_TotalNtarget + 1
+  }else{In50Crl_TotalNtarget <- In50Crl_TotalNtarget}
+}
+Cover95Crl_TotalNtarget <- In95Crl_TotalNtarget/nsim
+Cover50Crl_TotalNtarget <- In50Crl_TotalNtarget/nsim
+Coverage_TotalNtarget <- data.frame(Parameter = "TotalNtarget",
+                                    Cover95Crl = Cover95Crl_TotalNtarget,
+                                    Cover50Crl = Cover50Crl_TotalNtarget)
+Coverage_TotalNtarget
+
+```
+
+## Area-Wise Prevalence
+
+### Summary of the Area-Wise Prevalence
+
+#### Check the Trace and Acf Plots
+
+```{r}
+## Mix trace plots - check chains convergence##
+color_scheme_set("mix-blue-red")
+par(mfrow=c(2,2))
+pars_prev_g <- sprintf("pesudo_logit_prev[%d]", 1:K)
+mcmc_trace(samples_Mod_list[[random_show_index]], pars = pars_prev_g) + 
+  labs (x='Iteration',y='Area specific prevalence value (pesudo)',title= paste('Group specific prevalence', '(k = 1:', K,')', sep = ""))  
+par(mfrow=c(1,1))
+```
+
+#### Summary of the true area-wise prevalence
+
+```{r summary true prev, echo = FALSE}
+mean_trueprev_by_loc <- apply(TruePrev_all_simu, 2, mean)
+median_trueprev_by_loc <- apply(TruePrev_all_simu, 2, median)
+quantile_mean_trueprev <- quantile(mean_trueprev_by_loc, probs = c(0, 0.025, 0.1, 0.25, 0.5, 0.75, 0.9 ,0.975, 1))
+quantile_median_trueprev <- quantile(median_trueprev_by_loc, probs = c(0, 0.025, 0.1, 0.25, 0.5, 0.75, 0.9 ,0.975, 1))
+
+summary_trueprev_by_loc_df <- data.frame(OH_cty_names,
+                                         mean_trueprev_by_loc = mean_trueprev_by_loc,
+                                         median_trueprev_by_loc = median_trueprev_by_loc)
+
+
+quntiles_trueprev_by_loc_df <- rbind(quantile_mean_trueprev,quantile_median_trueprev)
+quntiles_trueprev_by_loc_df <- t(quntiles_trueprev_by_loc_df)
+quntiles_trueprev_by_loc_df <- as.data.frame(quntiles_trueprev_by_loc_df)
+quntiles_trueprev_by_loc_df$quantiles <- rownames(quntiles_trueprev_by_loc_df)
+colnames(quntiles_trueprev_by_loc_df) <- c("mean_by_loc","median_by_loc","quantiles_by_loc")
+quntiles_trueprev_by_loc_df <- quntiles_trueprev_by_loc_df[,c("quantiles_by_loc","mean_by_loc","median_by_loc")]
+
+
+write.csv(summary_trueprev_by_loc_df, file = paste(path_to_output, "Summary_TruePrev_By_Loc",".csv", sep = ""), row.names = FALSE)
+write.csv(quntiles_trueprev_by_loc_df, file = paste(path_to_output, "Quantiles_TruePrev_By_Loc",".csv", sep = ""), row.names = FALSE)
+
+```
+
+The quantile of the mean of true prevalence across areas is:
+
+For each of the generated true data, we compute the mean true prevalence. Across all generated data, we compute the quantile of the mean true prevalence.
+
+```{r quantile of mean true prev, echo = FALSE}
+quantile_mean_trueprev
+```
+
+#### Summary of the estimated area-wise prevalence
+
+```{r summary est prev, echo = FALSE}
+samp_prev <- list.files(path = path_to_input, pattern = 'mcmc.out_ModMthICAR_prev_(simu\\d+).Rdata$') 
+samp_prev_list <- lapply(samp_prev, function (x) readRDS(paste(path_to_input,x,sep = ""))) # length = nsim. each = nsamp * K
+samp_prev_mean <- t(sapply(samp_prev_list, FUN = function(x){prev <- x[,2:(K+1)] 
+                                                           colMeans(prev)
+                                                          })
+                    )# dim = nsim * K
+mean_estprev_by_loc <- apply(samp_prev_mean, 2, mean)
+median_estprev_by_loc <- apply(samp_prev_mean, 2, median) 
+quantile_mean_estprev <- quantile(mean_estprev_by_loc, probs = c(0, 0.025, 0.1, 0.25, 0.5, 0.75, 0.9 ,0.975, 1))
+quantile_median_estprev <- quantile(median_estprev_by_loc, probs = c(0, 0.025, 0.1, 0.25, 0.5, 0.75, 0.9 ,0.975, 1))
+
+summary_estprev_by_loc_df <- data.frame(OH_cty_names,
+                                         mean_estprev_by_loc = mean_estprev_by_loc,
+                                         median_estprev_by_loc = median_estprev_by_loc)
+
+
+quntiles_estprev_by_loc_df <- rbind(quantile_mean_estprev,quantile_median_estprev)
+quntiles_estprev_by_loc_df <- t(quntiles_estprev_by_loc_df)
+quntiles_estprev_by_loc_df <- as.data.frame(quntiles_estprev_by_loc_df)
+quntiles_estprev_by_loc_df$quantiles <- rownames(quntiles_estprev_by_loc_df)
+colnames(quntiles_estprev_by_loc_df) <- c("mean_by_loc","median_by_loc","quantiles_by_loc")
+quntiles_estprev_by_loc_df <- quntiles_estprev_by_loc_df[,c("quantiles_by_loc","mean_by_loc","median_by_loc")]
+
+
+write.csv(summary_estprev_by_loc_df, file = paste(path_to_output, "Summary_EstPrev_By_Loc",".csv", sep = ""), row.names = FALSE)
+write.csv(quntiles_estprev_by_loc_df, file = paste(path_to_output, "Quantiles_EstPrev_By_Loc",".csv", sep = ""), row.names = FALSE)
+
+```
+
+The quantile of the mean of the estimated prevalence across areas is:
+
+For each of the simulation, we compute the mean estimated prevalence (effective). Across simulations, we compute the quantile of the mean estimated prevalence.
+
+```{r quantile of mean effective prev, echo = FALSE}
+quantile_mean_estprev
+```
+
+
+### Compare the top/lowest 10 areas between estimated and true prevalence
+
+#### Top 10 areas 
+
+Top 10 areas with the highest true versus estimated mean prevalence:
+
+```{r top10 mean est prev, echo = FALSE}
+top10_mean_trueprev <- summary_trueprev_by_loc_df %>%    
+  arrange(desc(mean_trueprev_by_loc)) %>% 
+  slice(1:10) %>%
+  subset(select = c(OH_Counties_Names,mean_trueprev_by_loc))
+colnames(top10_mean_trueprev) <- c("Area_Names_TruePrev","Mean_TruePrev")
+top10_mean_estprev <- summary_estprev_by_loc_df %>%    
+  arrange(desc(mean_estprev_by_loc)) %>% 
+  slice(1:10) %>%
+  subset(select = c(OH_Counties_Names,mean_estprev_by_loc))
+colnames(top10_mean_estprev) <- c("Area_Names_EstPrev","Mean_EstPrev")
+top10_mean_true_est_prev <- data.frame(Order = seq(1:10),
+                                       top10_mean_trueprev,
+                                       top10_mean_estprev)
+top10_mean_true_est_prev
+```
+
+The areas that were in top 10 of the true mean prevalence but not in the estimated top 10 list:
+
+```{r setdiff top10 mean prev, echo = FALSE}
+setdiff(top10_mean_true_est_prev$Area_Names_TruePrev,top10_mean_true_est_prev$Area_Names_EstPrev)
+```
+
+For those areas that were not accurately ranked in the estimated prevalence, what is the rank of them (how off we are?):
+
+```{r the rank of those inaccurate top 10 mean prev, echo = FALSE}
+which_top10k_off <- setdiff(top10_mean_true_est_prev$Area_Names_TruePrev,top10_mean_true_est_prev$Area_Names_EstPrev)
+which(summary_trueprev_by_loc_df$OH_Counties_Names %in% which_top10k_off)
+```
+
+#### Least 10 areas 
+
+Last 10 areas with the lowest true versus estimated mean prevalence:
+
+```{r least10 mean est prev, echo = FALSE}
+least10_mean_trueprev <- summary_trueprev_by_loc_df %>%    
+  arrange((mean_trueprev_by_loc)) %>% 
+  slice(1:10) %>%
+  subset(select = c(OH_Counties_Names,mean_trueprev_by_loc))
+colnames(least10_mean_trueprev) <- c("Area_Names_TruePrev","Mean_TruePrev")
+least10_mean_estprev <- summary_estprev_by_loc_df %>%    
+  arrange(mean_estprev_by_loc) %>% 
+  slice(1:10) %>%
+  subset(select = c(OH_Counties_Names,mean_estprev_by_loc))
+colnames(least10_mean_estprev) <- c("Area_Names_EstPrev","Mean_EstPrev")
+least10_mean_true_est_prev <- data.frame(Order = seq(1:10),
+                                       least10_mean_trueprev,
+                                       least10_mean_estprev)
+least10_mean_true_est_prev
+```
+
+The areas that were in last 10 of the true mean prevalence but not in the estimated top 10 list:
+
+```{r setdiff least10 mean prev, echo = FALSE}
+setdiff(least10_mean_true_est_prev$Area_Names_TruePrev,least10_mean_true_est_prev$Area_Names_EstPrev)
+```
+
+For those areas that were not accurately ranked in the estimated prevalence, what is the rank of them (how off we are?):
+
+```{r the rank of those inaccurate last 10 mean prev, echo = FALSE}
+which_last10k_off <- setdiff(least10_mean_true_est_prev$Area_Names_TruePrev,least10_mean_true_est_prev$Area_Names_EstPrev)
+which(summary_trueprev_by_loc_df$OH_Counties_Names %in% which_last10k_off)
+```
+
+#### The plot of the rank
+
+We plot out the rank of the K areas and see which estimated areas got off from the true values in terms of the rank. If the estimated rank matches the rank in the true values, then the point should be on the diagnoal line, otherwise it will be off the diagnoal line.
+
+```{r compare the rank, echo = FALSE}
+rank_mean_trueprev <- summary_trueprev_by_loc_df %>%    
+  arrange(desc(mean_trueprev_by_loc)) %>% 
+  subset(select = c(OH_Counties_Names,mean_trueprev_by_loc))
+colnames(rank_mean_trueprev) <- c("Area_Names","Mean_TruePrev")
+rank_mean_trueprev <- data.frame(Order_trueprev  = seq(1:K),
+                                 rank_mean_trueprev)
+rank_mean_estprev <- summary_estprev_by_loc_df %>%    
+  arrange(desc(mean_estprev_by_loc)) %>% 
+  subset(select = c(OH_Counties_Names,mean_estprev_by_loc))
+colnames(rank_mean_estprev) <- c("Area_Names","Mean_EstPrev")
+rank_mean_estprev <- data.frame(Order_estprev  = seq(1:K),
+                                 rank_mean_estprev)
+
+rank_mean_true_est_prev <- merge(rank_mean_trueprev, rank_mean_estprev, by.x = "Area_Names", all = TRUE)
+
+write.csv(rank_mean_true_est_prev, file = paste(path_to_output, "Rank_mean_true_est_prev",".csv", sep = ""), row.names = FALSE)
+```
+
+
+```{r scatter plot of the rank, echo = FALSE, fig.show="hold", out.width="100%", fig.asp = 0.8, fig.width = 7}
+plot_theme <- theme_bw(base_size = 15) +
+  theme(text = element_text(size=15),
+        axis.title.x = element_text(size=15),
+        axis.title.y = element_text(size=15),
+        axis.text.x = element_text(size=15, angle=45, hjust = 0.5, vjust = 0.6),
+        axis.text.y = element_text(size=15),
+        legend.position = "none",
+        legend.text = NULL, # element_text(size=15),
+        legend.title = NULL # element_text(size=15)
+        ) 
+
+### Add n obs by areas and Pk
+rank_mean_true_est_prev1 <- merge(rank_mean_true_est_prev, Mean_EmpiricalNObs_byLoc,by.x = "Area_Names", by.y = "Area_Names", all.x = TRUE)
+rank_mean_true_est_prev1 <- merge(rank_mean_true_est_prev1, Empirical_Pk,by.x = "Area_Names", by.y = "Area_Names", all.x = TRUE)
+
+ggplot(data = rank_mean_true_est_prev1, aes(x = Order_trueprev, y = Order_estprev, label = Area_Names)) +        
+  geom_text(vjust = 1.5, size = 2) +
+  geom_point(aes(size = Empirical_Pk, color = Mean_EmpiricalNObs_byLoc), alpha = 1)  + scale_color_gradient(low = "darkgoldenrod1", high = "blue4") + 
+  scale_size(range = c(2,9)) + # proportionally rescale the size of the points
+  geom_abline(colour = "slategray3" , alpha = 0.6) +
+  scale_x_continuous(name="Order of the Areas in the True Map", limits=c(1,K), breaks = seq(0,90, by = 10)) +
+  scale_y_continuous(name="Order of the Areas in the Estimated Map", limits=c(1,K), breaks = seq(0,90, by = 10)) +
+  plot_theme
+```
+
+
+
+#### The Spearman rank test between estimated and true values
+
+The Spearman's rank correlation coefficient and p-value of the mean prevalence calculated from simulations are:
+
+```{r Spearman rank test, echo = FALSE}
+
+Spearman_mean_prev <- cor.test(rank_mean_true_est_prev$Mean_TruePrev, rank_mean_true_est_prev$Mean_EstPrev, alternative = "greater", method = "spearman")
+# alternative = "greater" corresponds to positive association.
+
+Spearman_mean_prev
+
+```
+
+The summary of the rank correlation coefficients and p-values across simulations are:
+
+```{r Simulation Spearman rank test, echo = FALSE}
+rho_vec <- c()
+pvalue_vec <- c()
+for(task_id in 1:nsim){
+  test_result <- cor.test(TruePrev_all_simu[task_id,], samp_prev_mean[task_id,], alternative = "greater",  method = "spearman")
+  rho_vec <- c(rho_vec, test_result$estimate)
+  pvalue_vec <- c(pvalue_vec, test_result$p.value)
+}
+summary(rho_vec)
+summary(pvalue_vec)
+```
+
+#### nDCG
+
+```{r nDCG, echo = FALSE}
+# DCG
+rank_mean_true_est_prev_1 <- rank_mean_true_est_prev[order(rank_mean_true_est_prev$Order_trueprev, decreasing = TRUE),]
+rank_mean_true_est_prev_1$log2 <- log2(rank_mean_true_est_prev_1$Order_trueprev + 1)
+rank_mean_true_est_prev_1$DCG_k <- rank_mean_true_est_prev_1$Order_estprev/rank_mean_true_est_prev_1$log2
+DCG <- sum(rank_mean_true_est_prev_1$DCG_k)
+
+IDCG_k <- sort(rank_mean_true_est_prev_1$Order_estprev, decreasing = TRUE)/log2(seq(1:K) + 1)
+IDCG <- sum(IDCG_k)
+
+nDCG <- DCG/IDCG
+
+print(paste("The computed normalized DCG is", round(nDCG, 3), sep = " "))
+```
+
+
+### MSE, RMSE, MAE, and Relative Bias on Area-Wise Prevalence
+
+```{r check prev,  echo = FALSE}
+measures_Prev <- sapply(1:K, FUN = function(k){Comp.Bias.RMSE.MAE.vec(est = samp_prev_mean[,k], truevalue = TruePrev_all_simu[,k], nsim = nsim)})
+colnames(measures_Prev) <- OH_cty_names$OH_Counties_Names
+measures_Prev <- t(measures_Prev)
+measures_Prev
+```
+
+Compute the summary statistics of the above measures for the area-specific prevalence:
+
+```{r summary measures of prev, echo=FALSE}
+
+summary_measures_Prev <- apply(measures_Prev, 2, FUN = function(x){
+  mean_x <- mean(x)
+  sd_x <- sd(x)
+  res_x <- c(mean_x, sd_x)
+  names(res_x) <- c("Mean", "SD")
+  return(res_x)
+})
+summary_measures_Prev
+
+```
+
+
+### Percentage of Coverage of True Area-Wise Prevalence
+
+For each Area $k$, each simulation run $s$ generates a vector of posterior samples of estimated prevalence at $k$. From each of such samples, we compute the 95\% and 50\% equal-tail credible intervals (i.e. $l_{s,k}, u_{s,k}$). Each simulated data has a particular vector of true prevalences across K Areas. Each of the true value is compared with the computed intervals, if the true value is within in interval, then it counts, otherwise it doesn't count. The percentage of coverage is computed by summing up the counts and divides it by the total number of simulation runs.
+
+```{r check coverage of Area-wise prevalence,  echo = FALSE}
+Qrs_prev <- list()
+for (i in 1:nsim){
+   samp_prev_isimu <- samp_prev_list[[i]][,2:(K+1)]
+   Qrs.prev_isimu <- apply(samp_prev_isimu, 2, FUN = function(x) {
+                     quantile(x, probs = c(0.025,0.25,0.75,0.975))
+                     })
+   Qrs.prev_isimu <- t(Qrs.prev_isimu)
+   Qrs.prev_isimu <- round(Qrs.prev_isimu, digits = 3)
+   Qrs_prev[[i]] <- Qrs.prev_isimu
+}
+In95Crl_prev <- matrix(0, nrow = nsim, ncol = K)
+In50Crl_prev <- matrix(0, nrow = nsim, ncol = K)
+for (i in 1:nsim){
+  for(k in 1:K){
+    if(TruePrev_all_simu[i,k] <= Qrs_prev[[i]][k,4] & TruePrev_all_simu[i,k] >= Qrs_prev[[i]][k,1]){
+     In95Crl_prev[i,k] <- 1
+    }else{In95Crl_prev[i,k] <- 0}
+     if(TruePrev_all_simu[i,k] <= Qrs_prev[[i]][k,3] & TruePrev_all_simu[i,k] >= Qrs_prev[[i]][k,2]){
+     In50Crl_prev[i,k] <- 1
+    }else{In50Crl_prev[i,k] <- 0}
+  }
+}
+Cover95Crl_prev <- colSums(In95Crl_prev)/nsim
+Cover50Crl_prev <- colSums(In50Crl_prev)/nsim
+Coverage_prev <- data.frame(OH_cty_names,
+                            Cover95Crl = Cover95Crl_prev,
+                            Cover50Crl = Cover50Crl_prev)
+Coverage_prev
+```
+
+### Map of the Mean/Median Area-Wise Prevalence
+
+```{r Map of prev, echo = FALSE,  fig.show="hold", out.width="80%"}
+
+##### Create a Map comparing estimated prevalence to true prevalence ######
+library(devtools)
+library(ggplot2)
+library(stringr)
+library(dplyr)
+# some standard Map packages.
+# install.packages(c("Maps", "Mapdata"))
+# the github version of ggmap, which recently pulled in a small fix I had for a bug 
+# devtools::install_github("dkahle/ggmap")
+library(ggmap)
+library(maps)
+# map("state", "OHIO") # state boundary plot
+states <- map_data("state")
+OH <- subset(states, region %in% "ohio")
+# ggplot(data=OH) + geom_polygon(data = OH, aes(x=long, y = lat,group=group)) +
+# coord_fixed(1.3)
+OH_df<-subset(states,region=="ohio")
+counties <- map_data("county")
+OH_county <- subset(counties, region == "ohio")
+OH_county$subregion[which(OH_county$subregion == "van wert")] <- "van.wert"
+# Create a gray map
+OH_base <- ggplot(data = OH_df, mapping = aes(x = long, y = lat, group = group)) + 
+  coord_fixed(1.3) + 
+  geom_polygon(color = "black", fill = NA) # fill = "gray"
+OH_base <- OH_base + theme_nothing() + geom_polygon(data = OH_county, fill = NA, color = "white") +
+  geom_polygon(color = "black", fill = NA)  # get the state border back on top
+# merge OUD prevalence to OH map data
+# prepare to drop the axes and ticks but leave the guides and legends
+# We can't just throw down a theme_nothing()!
+ditch_the_axes <- theme(
+  axis.text = element_blank(),
+  axis.line = element_blank(),
+  axis.ticks = element_blank(),
+  panel.border = element_blank(),
+  panel.grid = element_blank(),
+  axis.title = element_blank()
+)
+
+
+
+##### Compute mean and median of k Area across fitted simulations (estimated values) #####
+samp_prev_mean_over_simu <- colMeans(samp_prev_mean)
+samp_prev_med_over_simu <- apply(samp_prev_mean, 2, median)
+samp_prev_mean_med <- data.frame(OH_cty_names,
+                                 Mean_Prev = samp_prev_mean_over_simu,
+                                 Median_Prev = samp_prev_med_over_simu)
+colnames(samp_prev_mean_med) <- c("ID", "subregion", "Mean_Prev", "Median_Prev")
+samp_prev_mean_med$subregion <- tolower(samp_prev_mean_med$subregion)
+
+##### Compute mean and median of k Area across simulated data (true values) ######
+TruePrev_mean_over_simu <- colMeans(TruePrev_all_simu)
+TruePrev_med_over_simu <- apply(TruePrev_all_simu, 2, median)
+TruePrev_mean_med <- data.frame(OH_cty_names,
+                                Mean_Prev = TruePrev_mean_over_simu,
+                                Median_Prev = TruePrev_med_over_simu)
+colnames(TruePrev_mean_med) <- c("ID", "subregion", "Mean_Prev", "Median_Prev")
+TruePrev_mean_med$subregion <- tolower(TruePrev_mean_med$subregion)
+
+### Compute the Prevalence (in %)
+est.cacopa <- inner_join(OH_county, samp_prev_mean_med, by = "subregion")
+est.cacopa$Mean_Prev100 <- 100*est.cacopa$Mean_Prev
+est.cacopa$Median_Prev100 <- 100*est.cacopa$Median_Prev
+true.cacopa <- inner_join(OH_county, TruePrev_mean_med, by = "subregion")
+true.cacopa$Mean_Prev100 <- 100*true.cacopa$Mean_Prev
+true.cacopa$Median_Prev100 <- 100*true.cacopa$Median_Prev
+```
+
+1. Map of the mean of estimates prevalence versus true prevalence
+
+Step 1: For the true prevalence data, it is a nsim rows and K columns matrix, for each simulation, I compute the mean prevalence of the kth area. This gets a vector of mean prevalence across K areas. For the estimated posterior samples, it is a 3D space with x=nsim, y=K, z=nsamples (posterior). For each kth area, I compute mean of posterior samples for each simulation, and then compute mean of the prevalence across simulations.
+
+Step 2: With the computed mean vectors, we plot them out as maps separately. This is equivalent to compute $E(\hat{\pi}_{k})-E(\pi_{k}) = E(\hat{\pi}_{k}-\pi_{k})$. 
+
+Note that the reason why the median is not going to be used in this visualization is that the equation in the step 2 does hold for the median statistics.
+
+```{r Map of mean prev, echo = FALSE,  fig.show="hold", out.width="80%", fig.asp = 0.8, fig.width = 7}
+
+### Compare mean prevalence between estimates and true values ###
+mean.breaks <- as.numeric(quantile(c(true.cacopa$Mean_Prev100,est.cacopa$Mean_Prev100), probs = c(0,0.25,0.5,0.75,1)))
+mean.breaks[1] <- mean.breaks[1]-0.01
+mean.breaks[5] <- mean.breaks[5]+0.01
+mean.breaks <- round(mean.breaks, 2)
+
+plot_prev_theme <-   theme_bw(base_size = 15) +
+  ditch_the_axes +
+  theme(plot.title = element_text(size=17),
+        legend.title = element_text(size=17, vjust = 1),
+        legend.text = element_text(size=17, angle = 45, vjust = 0.7),
+        legend.position = "bottom",
+        legend.key.height= unit(0.5, 'cm'),
+        legend.key.width= unit(1, 'cm'))
+
+plot_title <- "Mean of Estimated Prevalence (%)"
+est.mean_prev <- OH_base + 
+  geom_polygon(data = est.cacopa, aes(fill = Mean_Prev100), color = "white") +
+  geom_polygon(color = "black", fill = NA) +
+  scale_fill_viridis_c(breaks = mean.breaks, limit = c(min(mean.breaks), max(mean.breaks)), option = "A", direction = -1) +
+  ggtitle(plot_title) +
+  plot_prev_theme +
+  labs(fill="Prevalence(%)")
+
+plot_title <- "Mean of True Prevalence (%)"
+true.mean_prev <- OH_base + 
+  geom_polygon(data = true.cacopa, aes(fill = Mean_Prev100), color = "white") +
+  geom_polygon(color = "black", fill = NA) +
+  scale_fill_viridis_c(breaks = mean.breaks, limit = c(min(mean.breaks), max(mean.breaks)),option = "A", direction = -1) +
+  ggtitle(plot_title) +
+  plot_prev_theme +
+  labs(fill="Prevalence(%)")
+
+est.mean_prev
+true.mean_prev
+```
+
+
+2. Map of the p-value of estimated map given the true map
+
+We could plot out the p-value of the t-test from the calculated bias of estimated prevalence from the true prevalence. The red ones reflect where the significant bias from the t-test under $\alpha = 0.05$, the green ones reflect where the estimates have no significant bias.
+
+```{r Map of p-value, echo = FALSE,  fig.show="hold", out.width="100%"}
+
+Pvalue_DiffBias <- data.frame(subregion = rownames(measures_Prev),
+                               T.Test.P.Value.Diff.Bias = measures_Prev[,c("T.Test.P.Value.Diff.Bias")])
+Pvalue_DiffBias$subregion <- tolower(Pvalue_DiffBias$subregion)
+est.pvalue.cacopa <- inner_join(OH_county, Pvalue_DiffBias, by = "subregion")
+
+
+### For the purpose of paper plots ###
+pvalue.breaks <- as.numeric(quantile(est.pvalue.cacopa$T.Test.P.Value.Diff.Bias, probs = c(0,0.25,0.5,0.75,1)))
+pvalue.breaks[1] <- pvalue.breaks[1]-0.01
+pvalue.breaks[5] <- pvalue.breaks[5]+0.01
+pvalue.breaks <- round(pvalue.breaks, 2)
+scales <- round(c(0.00, 0.02, 0.05, pvalue.breaks[3], 1),2)
+
+plot_pvalue_theme <-  theme_bw() +
+  ditch_the_axes +
+  theme(plot.title = element_text(size=17),
+        legend.title = element_text(size=17, vjust = 1),
+        legend.text = element_text(size=17, angle = 45, vjust = 0.7),
+        legend.position = "bottom",
+        legend.key.height= unit(0.5, 'cm'),
+        legend.key.width= unit(1, 'cm'))
+
+plot_title <- "P-value of the t test on the \n bias of the estimated prevalence"
+est.pvalue_prev <- OH_base + 
+  geom_polygon(data = est.pvalue.cacopa, aes(fill = T.Test.P.Value.Diff.Bias), color = "white") +
+  geom_polygon(color = "black", fill = NA) +
+  scale_fill_gradientn(colours = c("coral4","coral", "white", "lightskyblue2", "lightskyblue4"), values = scales, breaks = scales, labels = c("","","0.05","","")) +
+  # The breaks define the absolute values in the legend and labels attach the name for the absolute values.("coral4","coral", "white", "darkseagreen", "darkseagreen4")
+  ggtitle(plot_title)+
+  plot_pvalue_theme +
+  labs(fill="P-values")
+
+est.pvalue_prev 
+```
+
+
+
+
+## Spatial Random Effect 
+
+Randomly select few simulation runs to check the graphical result of values of $\phi_{k}$ that are monitored in the MCMC.
+
+```{r graphical check phi, fig.show="hold", out.width='60%'}
+rand.isim <- sample(simu_ran_through_sort, 5)
+knitr::include_graphics(paste(path_to_input_plots,"postSpPhi_combochains_simu",rand.isim[1], ".jpg", sep = ""))
+knitr::include_graphics(paste(path_to_input_plots,"postSpPhi_combochains_simu",rand.isim[2], ".jpg", sep = ""))
+knitr::include_graphics(paste(path_to_input_plots,"postSpPhi_combochains_simu",rand.isim[3], ".jpg", sep = ""))
+knitr::include_graphics(paste(path_to_input_plots,"postSpPhi_combochains_simu",rand.isim[4], ".jpg", sep = ""))
+knitr::include_graphics(paste(path_to_input_plots,"postSpPhi_combochains_simu",rand.isim[5], ".jpg", sep = ""))
+```
+
+
+```{r check phi,  echo = FALSE}
+samp_resPhi <- list.files(path = path_to_input, pattern = 'mcmc.out_ModMthICAR_resPhi_(simu\\d+).Rdata$') 
+samp_resPhi_list <- lapply(samp_resPhi, function (x) readRDS(paste(path_to_input,x,sep = ""))) # length = nsim. each = nsamp * (K+1), 1 for order of chains indicators
+samp_resPhi_mean <- t(sapply(samp_resPhi_list, FUN = function(x){resPhi <- x[,2:(K+1)] 
+                                                           colMeans(resPhi)
+                                                          })
+                    )# dim = nsim * K
+measures_resPhi <- sapply(1:K, FUN = function(k){Comp.Bias.RMSE.MAE.vec(est = samp_resPhi_mean[,k], truevalue = TrueSpatialRE_all_simu[,k], nsim = nsim)})
+colnames(measures_resPhi) <- names_of_k
+measures_resPhi <- t(measures_resPhi)
+measures_resPhi
+```
+
+## Spatial Variance Parameter
+
+### MSE, RMSE, MAE, Relative Bias on Spatial Variance Parameter
+
+```{r check SpVar,  echo = FALSE}
+samp_Sigma2.spRE<- list.files(path = path_to_input, pattern = 'mcmc.out_ModMthICAR_sigma2.phi_(simu\\d+).Rdata$')
+samp_Sigma2.spRE_list <- lapply(samp_Sigma2.spRE, function (x) readRDS(paste(path_to_input,x,sep = "")))
+samp_Sigma2.spRE_mean <- sapply(samp_Sigma2.spRE_list, FUN = function(x){Sigma2.spRE <- x[,2] 
+                                                                 mean(Sigma2.spRE)
+                                                                 })
+measures_Sigma2.spRE<- Comp.Bias.RMSE.MAE.vec(est = samp_Sigma2.spRE_mean, truevalue = TrueSigma2.phi_all_simu, nsim = nsim)
+measures_Sigma2.spRE
+```
+
+
+## List Effects
+
+### MSE, RMSE, MAE, Relative Bias on List Effects
+
+#### Use the theoretical values as the true values
+
+In this computation of the distance measures, the true values for the list effects are the ones in our design which might NOT necessarily exactly the same as the proportion of the captured cases in the generated data, the difference between two are the simulation, or say sampling, errors.
+
+Note that if we take this measure, the results DO NOT account for the simulation errors.
+
+```{r check list effect,  echo = FALSE}
+samp_logitlisteffect <- list.files(path = path_to_input, pattern = 'mcmc.out_ModMthICAR_logitlisteffect_(simu\\d+).Rdata$')
+samp_logitlisteffect_list <- lapply(samp_logitlisteffect, function (x) readRDS(paste(path_to_input,x,sep = ""))) # length = nsim. each = nsamp * J
+samp_logitlisteffect_mean <- t(sapply(samp_logitlisteffect_list, FUN = function(x){logitlisteffect <- x[,2:(J+1)]
+            colMeans(logitlisteffect)
+            })
+            )# dim = nsim * J
+
+
+measures_logitlisteffect <- sapply(1:J, FUN = function(j){Comp.Bias.RMSE.MAE.vec(est = samp_logitlisteffect_mean[,j], truevalue = True_list_effects_all_simu[,j], nsim = nsim)})
+colnames(measures_logitlisteffect) <- paste0("List J",seq(1:J),sep="")
+measures_logitlisteffect <- t(measures_logitlisteffect)
+measures_logitlisteffect
+```
+
+#### Using the empirically calculated values as the true values
+
+In this computation of the distance measures, we use the empirically calculated detection probabilities from the generated data as the true values, then we take log to get the list effects. If we use this, we account for the simulation, or say sampling, error.
+
+```{r check empirical list effect,  echo = FALSE}
+measures_efflogitlisteffect <- sapply(1:J, FUN = function(j){Comp.Bias.RMSE.MAE.vec(est = samp_logitlisteffect_mean[,j], truevalue = Empirical_ListEffect_val_all_simu[,j], nsim = nsim)})
+colnames(measures_efflogitlisteffect) <- paste0("List J",seq(1:J),sep="")
+measures_efflogitlisteffect <- t(measures_efflogitlisteffect)
+measures_efflogitlisteffect
+```
+
+
+## Overall Baseline Prevalence
+
+### MSE, RMSE, MAE, Relative Bias on Overall Baseline Prevalence
+
+```{r check beta0, echo = FALSE}
+samp_EffBaselinePrev<- list.files(path = path_to_input, pattern = 'mcmc.out_ModMthICAR_effbaselineprev_(simu\\d+).Rdata$')
+samp_EffBaselinePrev_list <- lapply(samp_EffBaselinePrev, function (x) readRDS(paste(path_to_input,x,sep = "")))
+samp_EffBaselinePrev_mean <- sapply(samp_EffBaselinePrev_list, FUN = function(x){EffBaselinePrev <- x[,2] 
+            mean(EffBaselinePrev)
+            })
+measures_EffBaselinePrev<- Comp.Bias.RMSE.MAE.vec(est = samp_EffBaselinePrev_mean, truevalue = TrueBaseline_prev_all_simu, nsim = nsim)
+measures_EffBaselinePrev
+```
+
+## Summary of WAIC
+
+We summarize the WAIC statistics in order to be able to compare with alternative Bayesian models, either with different model parameters or with the same parameter but in different prior specifications.
+
+```{r check WAIC, echo = FALSE}
+# pattern specification: () catpure groups, \\d+ capture one or more digits
+samp_WAIC <- list.files(path = path_to_input, pattern = 'mcmc.out_ModMthICAR_WAIC_(simu\\d+).Rdata$')
+samp_WAIC_list <- lapply(samp_WAIC, function (x) readRDS(paste(path_to_input,x,sep = "")))
+samp_WAIC_vec <- sapply(samp_WAIC_list, FUN = function(x){WAIC <- x$WAIC
+                                                           return(WAIC)
+                                                          })
+samp_WAIC_mean <- round(mean(samp_WAIC_vec), 3)
+samp_WAIC_median <- round(median(samp_WAIC_vec), 3)
+
+paste("The mean of WAIC is ", samp_WAIC_mean, ".", sep = "")
+paste("The median of WAIC is ", samp_WAIC_median, ".", sep = "")
+```
