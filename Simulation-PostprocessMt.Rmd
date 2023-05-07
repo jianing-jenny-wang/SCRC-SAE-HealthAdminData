@@ -2,7 +2,7 @@
 title: "Simulation-PostprocessMt"
 author: "Jianing Wang"
 date: "2023-04-29"
-output: html_document
+output: github_document
 ---
 
 ```{r setup, include=FALSE}
@@ -39,7 +39,9 @@ DetectProb_scenario <- "Vary" # "Same_large" # "Same_small" # "Vary"
 # If including or excluding the extremely small data source
 Vary_Extreme_scenario <- "woExtreme" # "woExtreme" # "wExtreme" 
 
-case <- paste("Simu", scenario, "_J", nDatasets_val, DetectProb_scenario, Vary_Extreme_scenario, "PDetect", sep = "")
+if(scenario < 1.5){
+  case <- paste("Simu", scenario, "_J", nDatasets_val, DetectProb_scenario, "PDetect", sep = "")
+}else{case <- paste("Simu", scenario, "_J", nDatasets_val, DetectProb_scenario, Vary_Extreme_scenario, "PDetect", sep = "")}
 
 #### Remove the list with lowest catachability ####
 Remove_Smallest_List <- "yes"

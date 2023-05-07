@@ -2,7 +2,7 @@
 title: "Simulation-PostprocessMth"
 author: "Jianing Wang"
 date: "2023-04-29"
-output: html_document
+output: github_document
 ---
 
 ```{r setup, include=FALSE}

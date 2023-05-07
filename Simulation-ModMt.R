@@ -29,7 +29,9 @@ DetectProb_scenario <- "Vary" # "Same_large" # "Same_small" # "Vary"
 ## If including or excluding the extremely small data source
 Vary_Extreme_scenario <- "woExtreme" # "woExtreme" # "wExtreme" 
 
-case <- paste("Simu", scenario, "_J", nDatasets_val, DetectProb_scenario, Vary_Extreme_scenario, "PDetect", sep = "")
+if(scenario < 1.5){
+  case <- paste("Simu", scenario, "_J", nDatasets_val, DetectProb_scenario, "PDetect", sep = "")
+}else{case <- paste("Simu", scenario, "_J", nDatasets_val, DetectProb_scenario, Vary_Extreme_scenario, "PDetect", sep = "")}
 
 #### Run with R-intel ####
 run_with_intel <- "yes" # yes
@@ -41,13 +43,15 @@ parallel_run <- "yes"
 Remove_Smallest_List <- "yes"
 
 #### Set Working Directory and Path to Output ####
-path_to_input <-  paste(".../Simulation/GenDt_Mt/Simu",scenario,"_J", nDatasets_val, "_", DetectProb_scenario, "PDetect/", sep = "")
+if(scenario < 1.5){
+  path_to_input <-  paste(".../Simulation/GenDt_Mt/Simu",scenario,"_J", nDatasets_val, "_", DetectProb_scenario, "PDetect/", sep = "")
+}else{path_to_input <-  paste(".../Simulation/GenDt_Mt/Simu",scenario,"_J", nDatasets_val, "_", DetectProb_scenario, Vary_Extreme_scenario, "PDetect/", sep = "")}
 
 if(Remove_Smallest_List == "no"){
-  path_to_output <- paste(".../Simulation/Simu_MCMC_Out/Mt/Simu",scenario,"_J", nDatasets_val, "_", DetectProb_scenario, "PDetect/", sep = "")
+  path_to_output <- paste(".../Simulation/Simu_MCMC_Out/Mt/Simu",scenario,"_J", nDatasets_val, "_", DetectProb_scenario, Vary_Extreme_scenario, "PDetect/", sep = "")
 }
 if(Remove_Smallest_List == "yes"){
-  path_to_output <- paste(".../Simulation/Simu_MCMC_Out/Mt/Simu",scenario,"_J", nDatasets_val, "_", DetectProb_scenario, "PDetect", "woSmallestJ/", sep = "")
+  path_to_output <- paste(".../Simulation/Simu_MCMC_Out/Mt/Simu",scenario,"_J", nDatasets_val, "_", DetectProb_scenario, Vary_Extreme_scenario, "PDetect", "woSmallestJ/", sep = "")
 }
 
 path_to_funcs <- ".../Simulation/"
