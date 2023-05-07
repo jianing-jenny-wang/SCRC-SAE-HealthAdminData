@@ -3,7 +3,6 @@
 #########################################################################################################
 
 
-# library("copula")
 if (!require("mvtnorm")) install.packages("mvtnorm") else (require("mvtnorm", quietly = TRUE)) 
 if (!require("matrixsampling")) install.packages("matrixsampling") else (require("matrixsampling", quietly = TRUE)) 
 if (!require("LaplacesDemon")) install.packages("LaplacesDemon") else (require("LaplacesDemon", quietly = TRUE)) 
