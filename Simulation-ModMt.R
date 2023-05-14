@@ -181,9 +181,9 @@ workflow <- function(seed, config_param){
     # variance parameter of the phi #
     ## Option 1: Variance ~ Inverse Gamma, Precision tau2 ~ Gamma
     # tau2 ~ dgamma(shape = 0.5, scale = 1/0.5) # inverse variance of spatial component (precision of the ICAR Component, equivalent variance ~ IG(0.5,0.5))
-    ## Option 2: Variance ~ Half-Cauchy (t distribution with df = 1)
-    inv_tau2  ~ T(dt(mu = 0, tau = sd_spRE_prior, df = 1), 0, ) # half-t truncated at 0 and set no upper limit
-    tau2 <- 1/inv_tau2 # compute precision  
+    ## Option 2: Scale ~ Half-Cauchy (t distribution with df = 1)
+    inv_tau  ~ T(dt(mu = 0, tau = sd_spRE_prior, df = 1), 0, ) # half-t truncated at 0 and set no upper limit
+    tau2 <- 1/(inv_tau^2) # compute precision  
     
     # phi from ICAR #
     phi[1:K] ~ dcar_normal(adj[1:L], weights[1:L], num[1:K], tau2, zero_mean = 1) # L = length of Adj_vec, K = n of regions, zero_mean = 1 put constraint centers at 0
@@ -223,7 +223,7 @@ workflow <- function(seed, config_param){
     beta0 <- alpha # compute overall baseline value of lambda
     # <3> Variance of spatial component
     # sigma2.phi <- 1/tau2 # variance of spatial component using inverse gamma for variance parameter
-    sigma2.phi <- inv_tau2 # variance of spatial component using half-cauchy for variance parameter
+    sigma2.phi <- inv_tau^2 # variance of spatial component using half-cauchy for variance parameter
     # <4> Area-specific residual
     resPhi[1:K] <- phi[1:K]
     # <5> Overall residuals at individual level
@@ -251,7 +251,7 @@ workflow <- function(seed, config_param){
   if(run_stepwise_mcmc == "yes"){
     Mod_Mt_ICAR_Inits <- list(alpha = runif(1,0.1,0.5), 
                               tau2 = rgamma(1, shape = 0.5, scale = 1/0.5),  # if using inverse gamma prior distribution for spRE var parameter
-                              inv_tau2 = runif(1,1,10), # if using half-cauchy prior distribution for spRE var parameter
+                              inv_tau = runif(1,1,10), # if using half-cauchy prior distribution for spRE var parameter
                               logit_list_effects = rep(runif(1,-2,2),J), 
                               phi = runif(K,-0.2,0.5),
                               z = rep(1, aug_size))
