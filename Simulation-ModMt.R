@@ -301,9 +301,9 @@ workflow <- function(seed, config_param){
 
 ## Configuration of MCMC sampling 
 nchains <- 3  # comment this line because we set three chains outside
-niter <- 100000 
-nburnin <- 50000 
-nthin <- 100
+niter <- 225000 
+nburnin <- 150000 
+nthin <- 150
 
 ## Constants 
 Mod_Mt_ICAR_Consts <- list(M = aug_size,
